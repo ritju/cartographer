@@ -89,17 +89,33 @@ void PoseExtrapolator::AddPose(const common::Time time,
 }
 
 void PoseExtrapolator::AddImuData(const sensor::ImuData& imu_data) {
-  CHECK(timed_pose_queue_.empty() ||
-        imu_data.time >= timed_pose_queue_.back().time);
-  imu_data_.push_back(imu_data);
+  if (timed_pose_queue_.empty() ||
+        imu_data.time >= timed_pose_queue_.back().time)
+    {
+      imu_data_.push_back(imu_data);
+    }
+  else
+  {
+    LOG(ERROR) << "imu_data.time: " << imu_data.time << ",timed_pose_queue_.back().time: " << timed_pose_queue_.back().time;
+    sensor::ImuData imu_data_temp = imu_data;
+    imu_data_temp.time = timed_pose_queue_.back().time + common::FromMilliseconds(1);
+    imu_data_.push_back(imu_data_temp);
+  }
   TrimImuData();
 }
 
 void PoseExtrapolator::AddOdometryData(
     const sensor::OdometryData& odometry_data) {
-  CHECK(timed_pose_queue_.empty() ||
-        odometry_data.time >= timed_pose_queue_.back().time);
-  odometry_data_.push_back(odometry_data);
+  if (timed_pose_queue_.empty() ||
+        odometry_data.time >= timed_pose_queue_.back().time)
+    odometry_data_.push_back(odometry_data);
+  else
+  {
+    LOG(ERROR) << "odometry_data.time: " << odometry_data.time << ",timed_pose_queue_.back().time: " << timed_pose_queue_.back().time;
+    sensor::OdometryData odometry_data_temp = odometry_data;
+    odometry_data_temp.time = timed_pose_queue_.back().time + common::FromMilliseconds(1);
+    odometry_data_.push_back(odometry_data_temp);
+  }
   TrimOdometryData();
   if (odometry_data_.size() < 2) {
     return;
