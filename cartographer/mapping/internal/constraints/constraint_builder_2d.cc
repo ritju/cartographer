@@ -63,7 +63,8 @@ ConstraintBuilder2D::ConstraintBuilder2D(
       thread_pool_(thread_pool),
       finish_node_task_(absl::make_unique<common::Task>()),
       when_done_task_(absl::make_unique<common::Task>()),
-      ceres_scan_matcher_(options.ceres_scan_matcher_options()) {}
+      ceres_scan_matcher_(options.ceres_scan_matcher_options()),
+      localization_score_(0) {}
 
 ConstraintBuilder2D::~ConstraintBuilder2D() {
   absl::MutexLock locker(&mutex_);
@@ -113,8 +114,10 @@ void ConstraintBuilder2D::MaybeAddConstraint(
 
 void ConstraintBuilder2D::MaybeAddGlobalConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
-    const NodeId& node_id, const TrajectoryNode::Data* const constant_data) {
+    const NodeId& node_id, const TrajectoryNode::Data* const constant_data, float localization_score=1) {
   absl::MutexLock locker(&mutex_);
+  localization_score_ = localization_score;
+  LOG(INFO) << "ConstraintBuilder2D::MaybeAddGlobalConstraint" << localization_score_;
   if (when_done_) {
     LOG(WARNING)
         << "MaybeAddGlobalConstraint was called while WhenDone was scheduled.";
@@ -212,7 +215,7 @@ void ConstraintBuilder2D::ComputeConstraint(
     kGlobalConstraintsSearchedMetric->Increment();
     if (submap_scan_matcher.fast_correlative_scan_matcher->MatchFullSubmap(
             constant_data->filtered_gravity_aligned_point_cloud,
-            options_.global_localization_min_score(), &score, &pose_estimate)) {
+            options_.global_localization_min_score(), &score, &pose_estimate, localization_score_)) {
       CHECK_GT(score, options_.global_localization_min_score());
       CHECK_GE(node_id.trajectory_id, 0);
       CHECK_GE(submap_id.trajectory_id, 0);

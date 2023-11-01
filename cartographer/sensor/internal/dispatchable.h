@@ -27,17 +27,24 @@ template <typename DataType>
 class Dispatchable : public Data {
  public:
   Dispatchable(const std::string &sensor_id, const DataType &data)
-      : Data(sensor_id), data_(data) {}
+      : Data(sensor_id), data_(data), localization_score_(0) {}
 
   common::Time GetTime() const override { return data_.time; }
   void AddToTrajectoryBuilder(
       mapping::TrajectoryBuilderInterface *const trajectory_builder) override {
+    trajectory_builder->SetLocalizationScore(localization_score_);
     trajectory_builder->AddSensorData(sensor_id_, data_);
+
   }
   const DataType &data() const { return data_; }
+  void SetLocalizationScore(float localization_score){
+    localization_score_ = localization_score;
+    LOG(INFO) << "Dispatchable::localization_score_" << localization_score_;
+  }
 
  private:
   const DataType data_;
+  float localization_score_;
 };
 
 template <typename DataType>

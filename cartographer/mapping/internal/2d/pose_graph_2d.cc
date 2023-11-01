@@ -56,7 +56,8 @@ PoseGraph2D::PoseGraph2D(
     : options_(options),
       optimization_problem_(std::move(optimization_problem)),
       constraint_builder_(options_.constraint_builder_options(), thread_pool),
-      thread_pool_(thread_pool) {
+      thread_pool_(thread_pool),
+      localization_score_(0) {
   if (options.has_overlapping_submaps_trimmer_2d()) {
     const auto& trimmer_options = options.overlapping_submaps_trimmer_2d();
     AddTrimmer(absl::make_unique<OverlappingSubmapsTrimmer2D>(
@@ -166,7 +167,7 @@ NodeId PoseGraph2D::AddNode(
       insertion_submaps.front()->insertion_finished();
   AddWorkItem([=]() LOCKS_EXCLUDED(mutex_) {
     return ComputeConstraintsForNode(node_id, insertion_submaps,
-                                     newly_finished_submap);
+                                     newly_finished_submap, localization_score_);
   });
   return node_id;
 }
@@ -226,6 +227,10 @@ void PoseGraph2D::AddOdometryData(const int trajectory_id,
     }
     return WorkItem::Result::kDoNotRunOptimization;
   });
+}
+void PoseGraph2D::SetLocalizationScoreData(const float localization_score){
+  localization_score_ = localization_score;
+  LOG(INFO) << "PoseGraph2D::SetLocalizationScoreData" << localization_score_;
 }
 
 void PoseGraph2D::AddFixedFramePoseData(
@@ -305,14 +310,15 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
         submap_id, submap, node_id, constant_data, initial_relative_pose);
   } else if (maybe_add_global_constraint) {
     constraint_builder_.MaybeAddGlobalConstraint(submap_id, submap, node_id,
-                                                 constant_data);
+                                                 constant_data, localization_score_);
   }
 }
 
 WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     const NodeId& node_id,
     std::vector<std::shared_ptr<const Submap2D>> insertion_submaps,
-    const bool newly_finished_submap) {
+    const bool newly_finished_submap,
+    float localization_score=1) {
   std::vector<SubmapId> submap_ids;
   std::vector<SubmapId> finished_submap_ids;
   std::set<NodeId> newly_finished_submap_node_ids;

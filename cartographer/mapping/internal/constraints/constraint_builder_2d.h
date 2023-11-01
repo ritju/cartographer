@@ -88,7 +88,7 @@ class ConstraintBuilder2D {
   // all computations are finished.
   void MaybeAddGlobalConstraint(
       const SubmapId& submap_id, const Submap2D* submap, const NodeId& node_id,
-      const TrajectoryNode::Data* const constant_data);
+      const TrajectoryNode::Data* const constant_data, float localization_score);
 
   // Must be called after all computations related to one node have been added.
   void NotifyEndOfNode();
@@ -167,6 +167,7 @@ class ConstraintBuilder2D {
 
   // Histogram of scan matcher scores.
   common::Histogram score_histogram_ GUARDED_BY(mutex_);
+  float localization_score_;
 };
 
 }  // namespace constraints

@@ -38,7 +38,8 @@ CollatedTrajectoryBuilder::CollatedTrajectoryBuilder(
       collate_fixed_frame_(trajectory_options.collate_fixed_frame()),
       trajectory_id_(trajectory_id),
       wrapped_trajectory_builder_(std::move(wrapped_trajectory_builder)),
-      last_logging_time_(std::chrono::steady_clock::now()) {
+      last_logging_time_(std::chrono::steady_clock::now()),
+      localization_score_(0) {
   absl::flat_hash_set<std::string> expected_sensor_id_strings;
   for (const auto& sensor_id : expected_sensor_ids) {
     if (sensor_id.type == SensorId::SensorType::LANDMARK &&
@@ -59,6 +60,7 @@ CollatedTrajectoryBuilder::CollatedTrajectoryBuilder(
 }
 
 void CollatedTrajectoryBuilder::AddData(std::unique_ptr<sensor::Data> data) {
+  sensor_collator_->SetLocalizationScore(localization_score_);
   sensor_collator_->AddSensorData(trajectory_id_, std::move(data));
 }
 
@@ -83,6 +85,8 @@ void CollatedTrajectoryBuilder::HandleCollatedSensorData(
     last_logging_time_ = std::chrono::steady_clock::now();
   }
 
+
+  data->SetLocalizationScore(localization_score_);
   data->AddToTrajectoryBuilder(wrapped_trajectory_builder_.get());
 }
 

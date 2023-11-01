@@ -88,6 +88,8 @@ class PoseGraph2D : public PoseGraph {
   void AddOdometryData(int trajectory_id,
                        const sensor::OdometryData& odometry_data) override
       LOCKS_EXCLUDED(mutex_);
+  void SetLocalizationScoreData(const float localization_score)
+      LOCKS_EXCLUDED(mutex_);
   void AddFixedFramePoseData(
       int trajectory_id,
       const sensor::FixedFramePoseData& fixed_frame_pose_data) override
@@ -190,7 +192,7 @@ class PoseGraph2D : public PoseGraph {
   WorkItem::Result ComputeConstraintsForNode(
       const NodeId& node_id,
       std::vector<std::shared_ptr<const Submap2D>> insertion_submaps,
-      bool newly_finished_submap) LOCKS_EXCLUDED(mutex_);
+      bool newly_finished_submap, float localization_score) LOCKS_EXCLUDED(mutex_);
 
   // Computes constraints for a node and submap pair.
   void ComputeConstraint(const NodeId& node_id, const SubmapId& submap_id)
@@ -267,6 +269,7 @@ class PoseGraph2D : public PoseGraph {
   PoseGraphData data_ GUARDED_BY(mutex_);
 
   ValueConversionTables conversion_tables_;
+  float localization_score_;
 
   // Allows querying and manipulating the pose graph by the 'trimmers_'. The
   // 'mutex_' of the pose graph is held while this class is used.

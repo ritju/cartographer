@@ -133,7 +133,7 @@ class FastCorrelativeScanMatcher2D {
   // (excluding equality) is possible, true is returned, and 'score' and
   // 'pose_estimate' are updated with the result.
   bool MatchFullSubmap(const sensor::PointCloud& point_cloud, float min_score,
-                       float* score, transform::Rigid2d* pose_estimate) const;
+                       float* score, transform::Rigid2d* pose_estimate, float localization_score) const;
 
  private:
   // The actual implementation of the scan matcher, called by Match() and
@@ -161,6 +161,7 @@ class FastCorrelativeScanMatcher2D {
   const proto::FastCorrelativeScanMatcherOptions2D options_;
   MapLimits limits_;
   std::unique_ptr<PrecomputationGridStack2D> precomputation_grid_stack_;
+  mutable float localization_score_;
 };
 
 }  // namespace scan_matching

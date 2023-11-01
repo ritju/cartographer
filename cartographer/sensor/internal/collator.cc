@@ -44,6 +44,11 @@ void Collator::AddSensorData(const int trajectory_id,
   QueueKey queue_key{trajectory_id, data->GetSensorId()};
   queue_.Add(std::move(queue_key), std::move(data));
 }
+void Collator::SetLocalizationScore(float localization_score)
+{
+  localization_score_ = localization_score;
+  LOG(INFO) << "Collator::SetLocalizationScore" << localization_score_;
+}
 
 void Collator::Flush() { queue_.Flush(); }
 

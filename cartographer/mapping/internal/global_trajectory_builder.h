@@ -46,7 +46,6 @@ std::unique_ptr<TrajectoryBuilderInterface> CreateGlobalTrajectoryBuilder3D(
 
 void GlobalTrajectoryBuilderRegisterMetrics(
     metrics::FamilyFactory* family_factory);
-
 }  // namespace mapping
 }  // namespace cartographer
 

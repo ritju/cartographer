@@ -47,7 +47,8 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
         pose_graph_(pose_graph),
         local_trajectory_builder_(std::move(local_trajectory_builder)),
         local_slam_result_callback_(local_slam_result_callback),
-        pose_graph_odometry_motion_filter_(pose_graph_odometry_motion_filter) {}
+        pose_graph_odometry_motion_filter_(pose_graph_odometry_motion_filter),
+        localization_score_(0) {}
   ~GlobalTrajectoryBuilder() override {}
 
   GlobalTrajectoryBuilder(const GlobalTrajectoryBuilder&) = delete;
@@ -69,6 +70,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     std::unique_ptr<InsertionResult> insertion_result;
     if (matching_result->insertion_result != nullptr) {
       kLocalSlamInsertionResults->Increment();
+      pose_graph_->SetLocalizationScoreData(localization_score_);
       auto node_id = pose_graph_->AddNode(
           matching_result->insertion_result->constant_data, trajectory_id_,
           matching_result->insertion_result->insertion_submaps);
@@ -133,6 +135,10 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
                                          "local_trajectory_builder_ present.";
     local_slam_result_data->AddToPoseGraph(trajectory_id_, pose_graph_);
   }
+  void SetLocalizationScore(float localization_score){
+    localization_score_ = localization_score;
+    LOG(INFO) << "SetLocalizationScore" << localization_score_;
+  }
 
  private:
   const int trajectory_id_;
@@ -140,7 +146,11 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
   std::unique_ptr<LocalTrajectoryBuilder> local_trajectory_builder_;
   LocalSlamResultCallback local_slam_result_callback_;
   absl::optional<MotionFilter> pose_graph_odometry_motion_filter_;
+  float localization_score_;
 };
+
+
+
 
 }  // namespace
 

@@ -191,7 +191,8 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
     : options_(options),
       limits_(grid.limits()),
       precomputation_grid_stack_(
-          absl::make_unique<PrecomputationGridStack2D>(grid, options)) {}
+          absl::make_unique<PrecomputationGridStack2D>(grid, options)),
+      localization_score_(0) {}
 
 FastCorrelativeScanMatcher2D::~FastCorrelativeScanMatcher2D() {}
 
@@ -209,9 +210,10 @@ bool FastCorrelativeScanMatcher2D::Match(
 
 bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
     const sensor::PointCloud& point_cloud, float min_score, float* score,
-    transform::Rigid2d* pose_estimate) const {
+    transform::Rigid2d* pose_estimate, float localization_score) const {
   // Compute a search window around the center of the submap that includes it
   // fully.
+  localization_score_ = localization_score;
   const SearchParameters search_parameters(
       1e6 * limits_.resolution(),  // Linear search window, 1e6 cells/direction.
       M_PI,  // Angular search window, 180 degrees in both directions.
@@ -251,12 +253,33 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
       discrete_scans, search_parameters, lowest_resolution_candidates,
       precomputation_grid_stack_->max_depth(), min_score);
   if (best_candidate.score > min_score) {
-    *score = best_candidate.score;
-    *pose_estimate = transform::Rigid2d(
+    auto pre_pose_estimate = transform::Rigid2d(
         {initial_pose_estimate.translation().x() + best_candidate.x,
          initial_pose_estimate.translation().y() + best_candidate.y},
         initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
-    return true;
+    float initial2estimate_pose_diff = sqrt(pow(pre_pose_estimate.translation()[0] - initial_pose_estimate.translation()[0], 2) + 
+                                       pow(pre_pose_estimate.translation()[1] - initial_pose_estimate.translation()[1], 2));
+    std::ostringstream progress_info;
+    progress_info << "************" << localization_score_ << "************";
+    std::cout << progress_info.str() << std::endl;
+    if (localization_score_ > 0.5 && initial2estimate_pose_diff < 2)
+    {
+      *score = best_candidate.score;
+      *pose_estimate = transform::Rigid2d(
+          {initial_pose_estimate.translation().x() + best_candidate.x,
+          initial_pose_estimate.translation().y() + best_candidate.y},
+          initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
+      return true;
+    }
+    else if (localization_score_ < 0.5)
+    {
+      *score = best_candidate.score;
+      *pose_estimate = transform::Rigid2d(
+          {initial_pose_estimate.translation().x() + best_candidate.x,
+          initial_pose_estimate.translation().y() + best_candidate.y},
+          initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
+      return true;
+    }
   }
   return false;
 }

@@ -91,6 +91,11 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
                                   local_slam_result_data) override {
     AddData(std::move(local_slam_result_data));
   }
+  void SetLocalizationScore(const float localization_score) override {
+    localization_score_ = localization_score;
+    LOG(INFO) << "CollatedTrajectoryBuilder::SetLocalizationScore" << localization_score_;
+    
+  }
 
  private:
   void AddData(std::unique_ptr<sensor::Data> data);
@@ -107,6 +112,7 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
   // Time at which we last logged the rates of incoming sensor data.
   std::chrono::steady_clock::time_point last_logging_time_;
   std::map<std::string, common::RateTimer<>> rate_timers_;
+  float localization_score_;
 };
 
 }  // namespace mapping
