@@ -93,7 +93,7 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
   }
   void SetLocalizationScore(const float localization_score) override {
     localization_score_ = localization_score;
-    LOG(INFO) << "CollatedTrajectoryBuilder::SetLocalizationScore" << localization_score_;
+    // LOG(INFO) << "CollatedTrajectoryBuilder::SetLocalizationScore" << localization_score_;
     
   }
 

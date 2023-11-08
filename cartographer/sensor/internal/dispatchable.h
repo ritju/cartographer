@@ -39,7 +39,7 @@ class Dispatchable : public Data {
   const DataType &data() const { return data_; }
   void SetLocalizationScore(float localization_score){
     localization_score_ = localization_score;
-    LOG(INFO) << "Dispatchable::localization_score_" << localization_score_;
+    // LOG(INFO) << "Dispatchable::localization_score_" << localization_score_;
   }
 
  private:

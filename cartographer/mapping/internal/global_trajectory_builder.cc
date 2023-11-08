@@ -137,7 +137,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
   }
   void SetLocalizationScore(float localization_score){
     localization_score_ = localization_score;
-    LOG(INFO) << "SetLocalizationScore" << localization_score_;
+    // LOG(INFO) << "SetLocalizationScore" << localization_score_;
   }
 
  private:

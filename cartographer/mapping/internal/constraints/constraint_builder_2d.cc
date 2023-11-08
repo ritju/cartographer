@@ -117,7 +117,7 @@ void ConstraintBuilder2D::MaybeAddGlobalConstraint(
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data, float localization_score=1) {
   absl::MutexLock locker(&mutex_);
   localization_score_ = localization_score;
-  LOG(INFO) << "ConstraintBuilder2D::MaybeAddGlobalConstraint" << localization_score_;
+  // LOG(INFO) << "ConstraintBuilder2D::MaybeAddGlobalConstraint" << localization_score_;
   if (when_done_) {
     LOG(WARNING)
         << "MaybeAddGlobalConstraint was called while WhenDone was scheduled.";

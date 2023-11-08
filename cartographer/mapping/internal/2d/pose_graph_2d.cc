@@ -230,7 +230,7 @@ void PoseGraph2D::AddOdometryData(const int trajectory_id,
 }
 void PoseGraph2D::SetLocalizationScoreData(const float localization_score){
   localization_score_ = localization_score;
-  LOG(INFO) << "PoseGraph2D::SetLocalizationScoreData" << localization_score_;
+  // LOG(INFO) << "PoseGraph2D::SetLocalizationScoreData" << localization_score_;
 }
 
 void PoseGraph2D::AddFixedFramePoseData(
