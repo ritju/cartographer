@@ -38,13 +38,16 @@ class Data {
   const std::string &GetSensorId() const { return sensor_id_; }
   virtual void AddToTrajectoryBuilder(
       mapping::TrajectoryBuilderInterface *trajectory_builder) = 0;
-  virtual void SetLocalizationScore(float localization_score){
+  virtual void SetLocalizationScore(float localization_score, float global_pose_x, float global_pose_y){
     localization_score_ = localization_score;
+    global_pose_x_ = global_pose_x;
+    global_pose_y_ = global_pose_y;
   }
 
  protected:
   const std::string sensor_id_;
   float localization_score_;
+  float global_pose_x_, global_pose_y_;
 };
 
 }  // namespace sensor

@@ -134,11 +134,17 @@ class FastCorrelativeScanMatcher2D {
   // 'pose_estimate' are updated with the result.
   bool MatchFullSubmap(const sensor::PointCloud& point_cloud, float min_score,
                        float* score, transform::Rigid2d* pose_estimate, float localization_score) const;
+  void GetNodeGloablePose(transform::Rigid2d node_globle_pose, transform::Rigid2d submap_globle_pose);
 
  private:
   // The actual implementation of the scan matcher, called by Match() and
   // MatchFullSubmap() with appropriate 'initial_pose_estimate' and
   // 'search_parameters'.
+  bool MatchFullMapWithSearchParameters(
+      SearchParameters search_parameters,
+      const transform::Rigid2d& initial_pose_estimate,
+      const sensor::PointCloud& point_cloud, float min_score, float* score,
+      transform::Rigid2d* pose_estimate) const;
   bool MatchWithSearchParameters(
       SearchParameters search_parameters,
       const transform::Rigid2d& initial_pose_estimate,
@@ -162,6 +168,9 @@ class FastCorrelativeScanMatcher2D {
   MapLimits limits_;
   std::unique_ptr<PrecomputationGridStack2D> precomputation_grid_stack_;
   mutable float localization_score_;
+  mutable float global_pose_x_, global_pose_y_;
+  transform::Rigid2d node_globle_pose_;
+  transform::Rigid2d submap_globle_pose_;
 };
 
 }  // namespace scan_matching

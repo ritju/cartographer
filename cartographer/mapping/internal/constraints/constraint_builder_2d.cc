@@ -64,7 +64,8 @@ ConstraintBuilder2D::ConstraintBuilder2D(
       finish_node_task_(absl::make_unique<common::Task>()),
       when_done_task_(absl::make_unique<common::Task>()),
       ceres_scan_matcher_(options.ceres_scan_matcher_options()),
-      localization_score_(0) {}
+      localization_score_(0),
+      node_localization_score_(0.1) {}
 
 ConstraintBuilder2D::~ConstraintBuilder2D() {
   absl::MutexLock locker(&mutex_);
@@ -78,7 +79,7 @@ ConstraintBuilder2D::~ConstraintBuilder2D() {
 void ConstraintBuilder2D::MaybeAddConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data,
-    const transform::Rigid2d& initial_relative_pose) {
+    const transform::Rigid2d& initial_relative_pose, float node_localization_score) {
   if (initial_relative_pose.translation().norm() >
       options_.max_constraint_distance()) {
     return;
@@ -114,9 +115,12 @@ void ConstraintBuilder2D::MaybeAddConstraint(
 
 void ConstraintBuilder2D::MaybeAddGlobalConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
-    const NodeId& node_id, const TrajectoryNode::Data* const constant_data, float localization_score=1) {
+    const NodeId& node_id, const TrajectoryNode::Data* const constant_data, float localization_score=0, float global_pose_x=0, float global_pose_y=0, float node_localization_score=0) {
   absl::MutexLock locker(&mutex_);
   localization_score_ = localization_score;
+  global_pose_x_ = global_pose_x;
+  global_pose_y_ = global_pose_y;
+  node_localization_score_ = node_localization_score;
   // LOG(INFO) << "ConstraintBuilder2D::MaybeAddGlobalConstraint" << localization_score_;
   if (when_done_) {
     LOG(WARNING)
@@ -213,6 +217,7 @@ void ConstraintBuilder2D::ComputeConstraint(
   // 3. Refine.
   if (match_full_submap) {
     kGlobalConstraintsSearchedMetric->Increment();
+    submap_scan_matcher.fast_correlative_scan_matcher->GetNodeGloablePose(node_gloable_pose_, submap_globle_pose_);
     if (submap_scan_matcher.fast_correlative_scan_matcher->MatchFullSubmap(
             constant_data->filtered_gravity_aligned_point_cloud,
             options_.global_localization_min_score(), &score, &pose_estimate, localization_score_)) {
@@ -251,8 +256,18 @@ void ConstraintBuilder2D::ComputeConstraint(
                             *submap_scan_matcher.grid, &pose_estimate,
                             &unused_summary);
 
+  // LOG(INFO) << "******************* Match full map: " << match_full_submap;
+  // LOG(INFO) << "Node localization score: " << node_localization_score_;
+  // LOG(INFO) << "Original node_global_pose_ x: " << node_gloable_pose_.translation()[0] << ", y: " << node_gloable_pose_.translation()[1];
+  // LOG(INFO) << "Estimate pose x: " << pose_estimate.translation()[0] << ", y: " << pose_estimate.translation()[1];
+  // // LOG(INFO) << "Real time global_pose_x: " << global_pose_x_ << ", global_pose_y: " << global_pose_y_;
+  // LOG(INFO) << "=================== Match full map: " << match_full_submap;
+
+
+
   const transform::Rigid2d constraint_transform =
-      ComputeSubmapPose(*submap).inverse() * pose_estimate;
+     ComputeSubmapPose(*submap).inverse() * pose_estimate;
+
   constraint->reset(new Constraint{submap_id,
                                    node_id,
                                    {transform::Embed3D(constraint_transform),
@@ -344,6 +359,12 @@ void ConstraintBuilder2D::RegisterMetrics(metrics::FamilyFactory* factory) {
       "Current number of constructed submap scan matchers");
   kNumSubmapScanMatchersMetric = num_matchers->Add({});
 }
+void ConstraintBuilder2D::Get_node_gloable_pose(transform::Rigid2d gloable_pose, transform::Rigid2d submap_globle_pose)
+{
+  node_gloable_pose_ = gloable_pose;
+  submap_globle_pose_ = submap_globle_pose;
+}
+
 
 }  // namespace constraints
 }  // namespace mapping

@@ -86,10 +86,10 @@ TEST_F(ConstraintBuilder2DTest, FindsConstraints) {
     for (int j = 0; j < 2; ++j) {
       constraint_builder_->MaybeAddConstraint(submap_id, &submap, NodeId{0, 0},
                                               &node_data,
-                                              transform::Rigid2d::Identity());
+                                              transform::Rigid2d::Identity(), 0);
     }
     constraint_builder_->MaybeAddGlobalConstraint(submap_id, &submap,
-                                                  NodeId{0, 0}, &node_data, 0);
+                                                  NodeId{0, 0}, &node_data, 0, 0, 0, 0);
     constraint_builder_->NotifyEndOfNode();
     thread_pool_.WaitUntilIdle();
     EXPECT_EQ(constraint_builder_->GetNumFinishedNodes(), ++expected_nodes);

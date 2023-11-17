@@ -45,6 +45,7 @@ struct NodeSpec2D {
   transform::Rigid2d local_pose_2d;
   transform::Rigid2d global_pose_2d;
   Eigen::Quaterniond gravity_alignment;
+  float localization_score_;
 };
 
 struct SubmapSpec2D {
@@ -86,7 +87,7 @@ class OptimizationProblem2D
   const MapById<NodeId, NodeSpec2D>& node_data() const override {
     return node_data_;
   }
-  const MapById<SubmapId, SubmapSpec2D>& submap_data() const override {
+  MapById<SubmapId, SubmapSpec2D>& submap_data() override {
     return submap_data_;
   }
   const std::map<std::string, transform::Rigid3d>& landmark_data()

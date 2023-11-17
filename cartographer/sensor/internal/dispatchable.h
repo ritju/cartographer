@@ -32,19 +32,22 @@ class Dispatchable : public Data {
   common::Time GetTime() const override { return data_.time; }
   void AddToTrajectoryBuilder(
       mapping::TrajectoryBuilderInterface *const trajectory_builder) override {
-    trajectory_builder->SetLocalizationScore(localization_score_);
+    trajectory_builder->SetLocalizationScore(localization_score_, global_pose_x_, global_pose_y_);
     trajectory_builder->AddSensorData(sensor_id_, data_);
 
   }
   const DataType &data() const { return data_; }
-  void SetLocalizationScore(float localization_score){
+  void SetLocalizationScore(float localization_score, const float global_pose_x, const float global_pose_y){
     localization_score_ = localization_score;
+    global_pose_x_ = global_pose_x;
+    global_pose_y_ = global_pose_y;
     // LOG(INFO) << "Dispatchable::localization_score_" << localization_score_;
   }
 
  private:
   const DataType data_;
   float localization_score_;
+  float global_pose_x_, global_pose_y_;
 };
 
 template <typename DataType>

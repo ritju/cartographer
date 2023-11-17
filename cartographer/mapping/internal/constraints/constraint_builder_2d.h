@@ -78,7 +78,8 @@ class ConstraintBuilder2D {
   void MaybeAddConstraint(const SubmapId& submap_id, const Submap2D* submap,
                           const NodeId& node_id,
                           const TrajectoryNode::Data* const constant_data,
-                          const transform::Rigid2d& initial_relative_pose);
+                          const transform::Rigid2d& initial_relative_pose,
+                          float node_localization_score);
 
   // Schedules exploring a new constraint between 'submap' identified by
   // 'submap_id' and the 'compressed_point_cloud' for 'node_id'.
@@ -88,7 +89,7 @@ class ConstraintBuilder2D {
   // all computations are finished.
   void MaybeAddGlobalConstraint(
       const SubmapId& submap_id, const Submap2D* submap, const NodeId& node_id,
-      const TrajectoryNode::Data* const constant_data, float localization_score);
+      const TrajectoryNode::Data* const constant_data, float localization_score, float global_pose_x, float global_pose_y, float node_localization_score);
 
   // Must be called after all computations related to one node have been added.
   void NotifyEndOfNode();
@@ -105,6 +106,7 @@ class ConstraintBuilder2D {
   void DeleteScanMatcher(const SubmapId& submap_id);
 
   static void RegisterMetrics(metrics::FamilyFactory* family_factory);
+  void Get_node_gloable_pose(transform::Rigid2d gloable_pose, transform::Rigid2d submap_globle_pose);
 
  private:
   struct SubmapScanMatcher {
@@ -168,6 +170,10 @@ class ConstraintBuilder2D {
   // Histogram of scan matcher scores.
   common::Histogram score_histogram_ GUARDED_BY(mutex_);
   float localization_score_;
+  float global_pose_x_, global_pose_y_;
+  transform::Rigid2d node_gloable_pose_;
+  transform::Rigid2d submap_globle_pose_;
+  float node_localization_score_;
 };
 
 }  // namespace constraints

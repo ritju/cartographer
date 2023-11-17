@@ -55,7 +55,7 @@ void TrajectoryCollator::AddSensorData(const int trajectory_id,
       .Add(std::move(queue_key), std::move(data));
 }
 
-void TrajectoryCollator::SetLocalizationScore(float localization_score){
+void TrajectoryCollator::SetLocalizationScore(float localization_score, float global_pose_x, float global_pose_y){
   localization_score;
 }
 void TrajectoryCollator::Flush() {

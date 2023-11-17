@@ -228,8 +228,10 @@ void PoseGraph2D::AddOdometryData(const int trajectory_id,
     return WorkItem::Result::kDoNotRunOptimization;
   });
 }
-void PoseGraph2D::SetLocalizationScoreData(const float localization_score){
+void PoseGraph2D::SetLocalizationScoreData(const float localization_score, const float global_pose_x, const float global_pose_y){
   localization_score_ = localization_score;
+  global_pose_x_ = global_pose_x;
+  global_pose_y_ = global_pose_y;
   // LOG(INFO) << "PoseGraph2D::SetLocalizationScoreData" << localization_score_;
 }
 
@@ -307,10 +309,14 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
             .global_pose.inverse() *
         optimization_problem_->node_data().at(node_id).global_pose_2d;
     constraint_builder_.MaybeAddConstraint(
-        submap_id, submap, node_id, constant_data, initial_relative_pose);
+        submap_id, submap, node_id, constant_data, initial_relative_pose, optimization_problem_->node_data().at(node_id).localization_score_);
   } else if (maybe_add_global_constraint) {
+
+    constraint_builder_.Get_node_gloable_pose(optimization_problem_->node_data().at(node_id).global_pose_2d, 
+                                              optimization_problem_->submap_data().at(submap_id).global_pose);
     constraint_builder_.MaybeAddGlobalConstraint(submap_id, submap, node_id,
-                                                 constant_data, localization_score_);
+                                                 constant_data, localization_score_, global_pose_x_, global_pose_y_,
+                                                 optimization_problem_->node_data().at(node_id).localization_score_);
   }
 }
 
@@ -342,7 +348,8 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
         matching_id.trajectory_id,
         optimization::NodeSpec2D{constant_data->time, local_pose_2d,
                                  global_pose_2d,
-                                 constant_data->gravity_alignment});
+                                 constant_data->gravity_alignment,
+                                 localization_score});
     for (size_t i = 0; i < insertion_submaps.size(); ++i) {
       const SubmapId submap_id = submap_ids[i];
       // Even if this was the last node added to 'submap_id', the submap will
@@ -381,7 +388,6 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
       newly_finished_submap_node_ids = finished_submap_data.node_ids;
     }
   }
-
   for (const auto& submap_id : finished_submap_ids) {
     ComputeConstraint(node_id, submap_id);
   }
@@ -762,7 +768,8 @@ void PoseGraph2D::AddNodeFromProto(const transform::Rigid3d& global_pose,
             transform::Project2D(constant_data->local_pose *
                                  gravity_alignment_inverse),
             transform::Project2D(global_pose * gravity_alignment_inverse),
-            constant_data->gravity_alignment});
+            constant_data->gravity_alignment,
+            100});
     return WorkItem::Result::kDoNotRunOptimization;
   });
 }
@@ -873,45 +880,88 @@ void PoseGraph2D::RunOptimization() {
   // data_.constraints, data_.frozen_trajectories and data_.landmark_nodes
   // when executing the Solve. Solve is time consuming, so not taking the mutex
   // before Solve to avoid blocking foreground processing.
+  auto before_optimize_submap_data = optimization_problem_->submap_data(); //保存优化前的submap_data_
   optimization_problem_->Solve(data_.constraints, GetTrajectoryStates(),
                                data_.landmark_nodes);
+
   absl::MutexLock locker(&mutex_);
+
+  
 
   const auto& submap_data = optimization_problem_->submap_data();
   const auto& node_data = optimization_problem_->node_data();
+
+  /*
+  首先判断是否需要优化submap位姿，如果距离超过阈值直接退出
+  */
+  for (const int trajectory_id : data_.trajectory_nodes.trajectory_ids())
+  {
+    auto submap_global_pose = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
+    const auto optimized_submap_global_pose = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
+    auto distance_diff = sqrt(pow(submap_global_pose[0] - optimized_submap_global_pose[0], 2) + pow(submap_global_pose[1] - optimized_submap_global_pose[1], 2));
+    if ( localization_score_ > 0.6 && distance_diff > 2)
+    {
+      optimization_problem_->submap_data() = before_optimize_submap_data;
+      data_.global_submap_poses_2d = optimization_problem_->submap_data();
+      return;
+    }
+  }
+
   for (const int trajectory_id : node_data.trajectory_ids()) {
     for (const auto& node : node_data.trajectory(trajectory_id)) {
-      auto& mutable_trajectory_node = data_.trajectory_nodes.at(node.id);
-      mutable_trajectory_node.global_pose =
-          transform::Embed3D(node.data.global_pose_2d) *
-          transform::Rigid3d::Rotation(
-              mutable_trajectory_node.constant_data->gravity_alignment);
-    }
+      // auto last_node_global_pose = data_.trajectory_nodes.at(node.id).global_pose;  //原始位姿
+      // auto optimize_node_global_pose = node.data.global_pose_2d; //优化后的位姿
+      // auto node_global_pose_diff = sqrt(pow(last_node_global_pose.translation()[0] - optimize_node_global_pose.translation()[0], 2)
+      //                              + pow(last_node_global_pose.translation()[1] - optimize_node_global_pose.translation()[1], 2));
+      // if (node.data.localization_score_ != 100 && node.data.localization_score_ > 0.6 && node_global_pose_diff > 1 )
+      // {
+      //   LOG(INFO) << "*************** Node localization score: " << node.data.localization_score_;
+      //   LOG(INFO) << "last_node_global_pose X : " << last_node_global_pose.translation()[0] << ", y: " << last_node_global_pose.translation()[1];
+      //   LOG(INFO) << "optimize_node_global_pose X : " << optimize_node_global_pose.translation()[0] << ", y: " << optimize_node_global_pose.translation()[1];
+      // }
+      // if (node.data.localization_score_ != 100 && node.data.localization_score_ > 0.6 && node_global_pose_diff < 1 )
+      // {
+        auto& mutable_trajectory_node = data_.trajectory_nodes.at(node.id);
+        mutable_trajectory_node.global_pose =
+            transform::Embed3D(node.data.global_pose_2d) *
+            transform::Rigid3d::Rotation(
+                mutable_trajectory_node.constant_data->gravity_alignment);
+      // }
+      }
 
-    // Extrapolate all point cloud poses that were not included in the
-    // 'optimization_problem_' yet.
-    const auto local_to_new_global =
-        ComputeLocalToGlobalTransform(submap_data, trajectory_id);
-    const auto local_to_old_global = ComputeLocalToGlobalTransform(
-        data_.global_submap_poses_2d, trajectory_id);
-    const transform::Rigid3d old_global_to_new_global =
-        local_to_new_global * local_to_old_global.inverse();
-
-    const NodeId last_optimized_node_id =
+      // Extrapolate all point cloud poses that were not included in the
+      // 'optimization_problem_' yet.
+      const auto local_to_new_global =
+          ComputeLocalToGlobalTransform(submap_data, trajectory_id);
+      const auto local_to_old_global = ComputeLocalToGlobalTransform(
+          data_.global_submap_poses_2d, trajectory_id);
+      const transform::Rigid3d old_global_to_new_global =
+          local_to_new_global * local_to_old_global.inverse();      
+      const NodeId last_optimized_node_id =
         std::prev(node_data.EndOfTrajectory(trajectory_id))->id;
-    auto node_it =
-        std::next(data_.trajectory_nodes.find(last_optimized_node_id));
-    for (; node_it != data_.trajectory_nodes.EndOfTrajectory(trajectory_id);
-         ++node_it) {
-      auto& mutable_trajectory_node = data_.trajectory_nodes.at(node_it->id);
-      mutable_trajectory_node.global_pose =
-          old_global_to_new_global * mutable_trajectory_node.global_pose;
-    }
+      auto node_it =
+          std::next(data_.trajectory_nodes.find(last_optimized_node_id));
+      for (; node_it != data_.trajectory_nodes.EndOfTrajectory(trajectory_id);
+          ++node_it) {
+        // float distance_diff = sqrt(pow(old_global_to_new_global.translation()[0], 2) + pow(old_global_to_new_global.translation()[1], 2));
+        
+        // if (localization_score_ > 0.6 && distance_diff > 1)
+        // {
+        //     LOG(INFO) << "//////////////// Real time localization score: " << localization_score_;
+        //     LOG(INFO) << "Distance_diff: " << distance_diff;
+        // }
+        // if (localization_score_ > 0.6 && distance_diff < 1)
+        // {
+          auto& mutable_trajectory_node = data_.trajectory_nodes.at(node_it->id);
+          mutable_trajectory_node.global_pose =
+              old_global_to_new_global * mutable_trajectory_node.global_pose;
+        // }
+      }
   }
   for (const auto& landmark : optimization_problem_->landmark_data()) {
     data_.landmark_nodes[landmark.first].global_landmark_pose = landmark.second;
   }
-  data_.global_submap_poses_2d = submap_data;
+  data_.global_submap_poses_2d = optimization_problem_->submap_data(); 
 }
 
 bool PoseGraph2D::CanAddWorkItemModifying(int trajectory_id) {
@@ -1129,6 +1179,9 @@ transform::Rigid3d PoseGraph2D::ComputeLocalToGlobalTransform(
   }
   const SubmapId last_optimized_submap_id = std::prev(end_it)->id;
   // Accessing 'local_pose' in Submap is okay, since the member is const.
+  // LOG(INFO) << " data_.submap_data.size : " <<  data_.submap_data.size();
+  // LOG(INFO) << " data_.global_submap_poses_2d.size : " <<  data_.global_submap_poses_2d.size();
+  // LOG(INFO) << " last_optimized_submap_id : " <<  last_optimized_submap_id;
   return transform::Embed3D(
              global_submap_poses.at(last_optimized_submap_id).global_pose) *
          data_.submap_data.at(last_optimized_submap_id)

@@ -60,7 +60,7 @@ CollatedTrajectoryBuilder::CollatedTrajectoryBuilder(
 }
 
 void CollatedTrajectoryBuilder::AddData(std::unique_ptr<sensor::Data> data) {
-  sensor_collator_->SetLocalizationScore(localization_score_);
+  sensor_collator_->SetLocalizationScore(localization_score_, global_pose_x_, global_pose_y_);
   sensor_collator_->AddSensorData(trajectory_id_, std::move(data));
 }
 
@@ -86,7 +86,7 @@ void CollatedTrajectoryBuilder::HandleCollatedSensorData(
   }
 
 
-  data->SetLocalizationScore(localization_score_);
+  data->SetLocalizationScore(localization_score_, global_pose_x_, global_pose_y_);
   data->AddToTrajectoryBuilder(wrapped_trajectory_builder_.get());
 }
 

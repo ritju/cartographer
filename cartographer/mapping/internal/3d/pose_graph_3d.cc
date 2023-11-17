@@ -205,7 +205,7 @@ void PoseGraph3D::AddImuData(const int trajectory_id,
     return WorkItem::Result::kDoNotRunOptimization;
   });
 }
-void PoseGraph3D::SetLocalizationScoreData(const float localization_score){
+void PoseGraph3D::SetLocalizationScoreData(const float localization_score, const float global_pose_x, const float global_pose_y){
   localization_score_ = localization_score;
 }
 

@@ -91,10 +91,10 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
                                   local_slam_result_data) override {
     AddData(std::move(local_slam_result_data));
   }
-  void SetLocalizationScore(const float localization_score) override {
+  void SetLocalizationScore(const float localization_score, const float global_pose_x, const float global_pose_y) override {
     localization_score_ = localization_score;
-    // LOG(INFO) << "CollatedTrajectoryBuilder::SetLocalizationScore" << localization_score_;
-    
+    global_pose_x_ = global_pose_x;
+    global_pose_y_ = global_pose_y;   
   }
 
  private:
@@ -113,6 +113,7 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
   std::chrono::steady_clock::time_point last_logging_time_;
   std::map<std::string, common::RateTimer<>> rate_timers_;
   float localization_score_;
+  float global_pose_x_, global_pose_y_;
 };
 
 }  // namespace mapping

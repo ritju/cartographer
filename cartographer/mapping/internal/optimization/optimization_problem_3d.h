@@ -86,7 +86,7 @@ class OptimizationProblem3D
   const MapById<NodeId, NodeSpec3D>& node_data() const override {
     return node_data_;
   }
-  const MapById<SubmapId, SubmapSpec3D>& submap_data() const override {
+  MapById<SubmapId, SubmapSpec3D>& submap_data() override {
     return submap_data_;
   }
   const std::map<std::string, transform::Rigid3d>& landmark_data()

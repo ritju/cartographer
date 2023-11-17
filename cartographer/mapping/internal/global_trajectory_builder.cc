@@ -70,7 +70,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     std::unique_ptr<InsertionResult> insertion_result;
     if (matching_result->insertion_result != nullptr) {
       kLocalSlamInsertionResults->Increment();
-      pose_graph_->SetLocalizationScoreData(localization_score_);
+      pose_graph_->SetLocalizationScoreData(localization_score_, global_pose_x_, global_pose_y_);
       auto node_id = pose_graph_->AddNode(
           matching_result->insertion_result->constant_data, trajectory_id_,
           matching_result->insertion_result->insertion_submaps);
@@ -135,8 +135,10 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
                                          "local_trajectory_builder_ present.";
     local_slam_result_data->AddToPoseGraph(trajectory_id_, pose_graph_);
   }
-  void SetLocalizationScore(float localization_score){
+  void SetLocalizationScore(float localization_score, const float global_pose_x, const float global_pose_y){
     localization_score_ = localization_score;
+    global_pose_x_ = global_pose_x;
+    global_pose_y_ = global_pose_y;
     // LOG(INFO) << "SetLocalizationScore" << localization_score_;
   }
 
@@ -147,6 +149,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
   LocalSlamResultCallback local_slam_result_callback_;
   absl::optional<MotionFilter> pose_graph_odometry_motion_filter_;
   float localization_score_;
+  float global_pose_x_, global_pose_y_;
 };
 
 

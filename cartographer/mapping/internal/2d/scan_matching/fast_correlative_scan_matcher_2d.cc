@@ -222,11 +222,13 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
       limits_.max() - 0.5 * limits_.resolution() *
                           Eigen::Vector2d(limits_.cell_limits().num_y_cells,
                                           limits_.cell_limits().num_x_cells));
-  return MatchWithSearchParameters(search_parameters, center, point_cloud,
+  bool match_full_map_result = MatchFullMapWithSearchParameters(search_parameters, center, point_cloud,
                                    min_score, score, pose_estimate);
+  // LOG(INFO) << "match_full_map_result: " << match_full_map_result;
+  return match_full_map_result;
 }
 
-bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
+bool FastCorrelativeScanMatcher2D::MatchFullMapWithSearchParameters(
     SearchParameters search_parameters,
     const transform::Rigid2d& initial_pose_estimate,
     const sensor::PointCloud& point_cloud, float min_score, float* score,
@@ -257,12 +259,14 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
         {initial_pose_estimate.translation().x() + best_candidate.x,
          initial_pose_estimate.translation().y() + best_candidate.y},
         initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
-    float initial2estimate_pose_diff = sqrt(pow(pre_pose_estimate.translation()[0] - initial_pose_estimate.translation()[0], 2) + 
-                                       pow(pre_pose_estimate.translation()[1] - initial_pose_estimate.translation()[1], 2));
-    std::ostringstream progress_info;
-    progress_info << "************" << localization_score_ << "************";
-    std::cout << progress_info.str() << std::endl;
-    if (localization_score_ > 0.5 && initial2estimate_pose_diff < 2)
+    auto pre_node_globle_pose = submap_globle_pose_ * pre_pose_estimate;
+    float initial2estimate_pose_diff = sqrt(pow(pre_pose_estimate.translation()[0] - node_globle_pose_.translation()[0], 2) + 
+                                       pow(pre_pose_estimate.translation()[1] - node_globle_pose_.translation()[1], 2));
+    // LOG(INFO) << " **** " << localization_score_ << " **** " << initial2estimate_pose_diff << " **** ";
+    // LOG(INFO) << " ****pre x ****" << pre_node_globle_pose.translation()[0] << " ****pre y ****" << pre_node_globle_pose.translation()[1];
+    // LOG(INFO) << " **** initial_x ****" << (node_globle_pose_.translation()[0]) << " **** initial_y ****" << (node_globle_pose_.translation()[1]);
+
+    if (localization_score_ > 0.5)
     {
       *score = best_candidate.score;
       *pose_estimate = transform::Rigid2d(
@@ -281,6 +285,43 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
       return true;
     }
   }
+  return false;
+}
+
+bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
+    SearchParameters search_parameters,
+    const transform::Rigid2d& initial_pose_estimate,
+    const sensor::PointCloud& point_cloud, float min_score, float* score,
+    transform::Rigid2d* pose_estimate) const {
+  CHECK(score != nullptr);
+  CHECK(pose_estimate != nullptr);
+
+  const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
+  const sensor::PointCloud rotated_point_cloud = sensor::TransformPointCloud(
+      point_cloud,
+      transform::Rigid3f::Rotation(Eigen::AngleAxisf(
+          initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
+  const std::vector<sensor::PointCloud> rotated_scans =
+      GenerateRotatedScans(rotated_point_cloud, search_parameters);
+  const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
+      limits_, rotated_scans,
+      Eigen::Translation2f(initial_pose_estimate.translation().x(),
+                           initial_pose_estimate.translation().y()));
+  search_parameters.ShrinkToFit(discrete_scans, limits_.cell_limits());
+
+  const std::vector<Candidate2D> lowest_resolution_candidates =
+      ComputeLowestResolutionCandidates(discrete_scans, search_parameters);
+  const Candidate2D best_candidate = BranchAndBound(
+      discrete_scans, search_parameters, lowest_resolution_candidates,
+      precomputation_grid_stack_->max_depth(), min_score);
+  if (best_candidate.score > min_score) {
+      *score = best_candidate.score;
+      *pose_estimate = transform::Rigid2d(
+          {initial_pose_estimate.translation().x() + best_candidate.x,
+          initial_pose_estimate.translation().y() + best_candidate.y},
+          initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
+      return true;
+    }
   return false;
 }
 
@@ -398,6 +439,11 @@ Candidate2D FastCorrelativeScanMatcher2D::BranchAndBound(
                        best_high_resolution_candidate.score));
   }
   return best_high_resolution_candidate;
+}
+void FastCorrelativeScanMatcher2D::GetNodeGloablePose(transform::Rigid2d node_globle_pose, transform::Rigid2d submap_globle_pose)
+{
+  node_globle_pose_ = node_globle_pose;
+  submap_globle_pose_ = submap_globle_pose;
 }
 
 }  // namespace scan_matching
