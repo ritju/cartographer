@@ -38,6 +38,7 @@ namespace {
 // A collection of values which can be added and later removed, and the maximum
 // of the current values in the collection can be retrieved.
 // All of it in (amortized) O(1).
+int global_linear_search_window_env = std::stoi(getenv("GLOBAL_LINEAR_SEARCH_WINDOW"));
 class SlidingWindowMaximum {
  public:
   void AddValue(const float value) {
@@ -214,8 +215,10 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
   // Compute a search window around the center of the submap that includes it
   // fully.
   localization_score_ = localization_score;
+  int global_linear_search_window = (localization_score_ > 0.6) ? global_linear_search_window_env : 1e6;
+  // double global_angular_search_window = (localization_score_ > 0.6) ? M_PI/2 : M_PI;
   const SearchParameters search_parameters(
-      1e6 * limits_.resolution(),  // Linear search window, 1e6 cells/direction.
+      global_linear_search_window * limits_.resolution(),  // Linear search window, 1e6 cells/direction.
       M_PI,  // Angular search window, 180 degrees in both directions.
       point_cloud, limits_.resolution());
   const transform::Rigid2d center = transform::Rigid2d::Translation(
@@ -255,35 +258,12 @@ bool FastCorrelativeScanMatcher2D::MatchFullMapWithSearchParameters(
       discrete_scans, search_parameters, lowest_resolution_candidates,
       precomputation_grid_stack_->max_depth(), min_score);
   if (best_candidate.score > min_score) {
-    auto pre_pose_estimate = transform::Rigid2d(
-        {initial_pose_estimate.translation().x() + best_candidate.x,
-         initial_pose_estimate.translation().y() + best_candidate.y},
-        initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
-    auto pre_node_globle_pose = submap_globle_pose_ * pre_pose_estimate;
-    float initial2estimate_pose_diff = sqrt(pow(pre_pose_estimate.translation()[0] - node_globle_pose_.translation()[0], 2) + 
-                                       pow(pre_pose_estimate.translation()[1] - node_globle_pose_.translation()[1], 2));
-    // LOG(INFO) << " **** " << localization_score_ << " **** " << initial2estimate_pose_diff << " **** ";
-    // LOG(INFO) << " ****pre x ****" << pre_node_globle_pose.translation()[0] << " ****pre y ****" << pre_node_globle_pose.translation()[1];
-    // LOG(INFO) << " **** initial_x ****" << (node_globle_pose_.translation()[0]) << " **** initial_y ****" << (node_globle_pose_.translation()[1]);
-
-    if (localization_score_ > 0.5)
-    {
       *score = best_candidate.score;
       *pose_estimate = transform::Rigid2d(
           {initial_pose_estimate.translation().x() + best_candidate.x,
           initial_pose_estimate.translation().y() + best_candidate.y},
           initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
       return true;
-    }
-    else if (localization_score_ < 0.5)
-    {
-      *score = best_candidate.score;
-      *pose_estimate = transform::Rigid2d(
-          {initial_pose_estimate.translation().x() + best_candidate.x,
-          initial_pose_estimate.translation().y() + best_candidate.y},
-          initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
-      return true;
-    }
   }
   return false;
 }

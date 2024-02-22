@@ -55,6 +55,7 @@ static auto* kNumSubmapScanMatchersMetric = metrics::Gauge::Null();
 transform::Rigid2d ComputeSubmapPose(const Submap2D& submap) {
   return transform::Project2D(submap.local_pose());
 }
+double maybe_add_local_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD"));
 
 ConstraintBuilder2D::ConstraintBuilder2D(
     const constraints::proto::ConstraintBuilderOptions& options,
@@ -84,10 +85,10 @@ void ConstraintBuilder2D::MaybeAddConstraint(
       options_.max_constraint_distance()) {
     return;
   }
-  if (!per_submap_sampler_
+  if ((!per_submap_sampler_
            .emplace(std::piecewise_construct, std::forward_as_tuple(submap_id),
                     std::forward_as_tuple(options_.sampling_ratio()))
-           .first->second.Pulse()) {
+           .first->second.Pulse()) && (localization_score_ > maybe_add_local_constraint_threshold_env)) {
     return;
   }
 
@@ -280,7 +281,7 @@ void ConstraintBuilder2D::ComputeConstraint(
     info << "Node " << node_id << " with "
          << constant_data->filtered_gravity_aligned_point_cloud.size()
          << " points on submap " << submap_id << std::fixed;
-    if (match_full_submap) {
+    if (match_full_submap && localization_score_ < 0.7) {
       info << " matches";
     } else {
       const transform::Rigid2d difference =

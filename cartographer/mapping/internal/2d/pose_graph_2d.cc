@@ -49,6 +49,8 @@ static auto* kActiveSubmapsMetric = metrics::Gauge::Null();
 static auto* kFrozenSubmapsMetric = metrics::Gauge::Null();
 static auto* kDeletedSubmapsMetric = metrics::Gauge::Null();
 
+double min_localization_score_for_optimize_env = std::stod(getenv("MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE"));
+
 PoseGraph2D::PoseGraph2D(
     const proto::PoseGraphOptions& options,
     std::unique_ptr<optimization::OptimizationProblem2D> optimization_problem,
@@ -406,8 +408,8 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
   constraint_builder_.NotifyEndOfNode();
   absl::MutexLock locker(&mutex_);
   ++num_nodes_since_last_loop_closure_;
-  if (options_.optimize_every_n_nodes() > 0 &&
-      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) {
+  if ((options_.optimize_every_n_nodes() > 0 &&
+      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) || localization_score_ < min_localization_score_for_optimize_env) {
     return WorkItem::Result::kRunOptimization;
   }
   return WorkItem::Result::kDoNotRunOptimization;
@@ -899,7 +901,7 @@ void PoseGraph2D::RunOptimization() {
     auto submap_global_pose = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
     const auto optimized_submap_global_pose = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
     auto distance_diff = sqrt(pow(submap_global_pose[0] - optimized_submap_global_pose[0], 2) + pow(submap_global_pose[1] - optimized_submap_global_pose[1], 2));
-    if ( localization_score_ > 0.6 && distance_diff > 2)
+    if ( localization_score_ > 0.7 && distance_diff > 4)
     {
       optimization_problem_->submap_data() = before_optimize_submap_data;
       data_.global_submap_poses_2d = optimization_problem_->submap_data();
