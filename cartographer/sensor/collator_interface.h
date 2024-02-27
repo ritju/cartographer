@@ -52,7 +52,7 @@ class CollatorInterface {
   // sensor data. Sensor packets with matching 'data.sensor_id_' must be added
   // in time order.
   virtual void AddSensorData(int trajectory_id, std::unique_ptr<Data> data) = 0;
-  virtual void SetLocalizationScore(float localization_score, const float global_pose_x, const float global_pose_y) = 0;
+  virtual void SetLocalizationScore(float localization_score, bool pause_optimization_sign, const float global_pose_x, const float global_pose_y) = 0;
 
   // Dispatches all queued sensor packets. May only be called once.
   // AddSensorData may not be called after Flush.

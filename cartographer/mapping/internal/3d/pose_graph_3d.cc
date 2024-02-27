@@ -55,7 +55,8 @@ PoseGraph3D::PoseGraph3D(
       optimization_problem_(std::move(optimization_problem)),
       constraint_builder_(options_.constraint_builder_options(), thread_pool),
       thread_pool_(thread_pool),
-      localization_score_(0) {}
+      localization_score_(0),
+      pause_optimization_sign_(false) {}
 
 PoseGraph3D::~PoseGraph3D() {
   WaitForAllComputations();
@@ -205,7 +206,8 @@ void PoseGraph3D::AddImuData(const int trajectory_id,
     return WorkItem::Result::kDoNotRunOptimization;
   });
 }
-void PoseGraph3D::SetLocalizationScoreData(const float localization_score, const float global_pose_x, const float global_pose_y){
+void PoseGraph3D::SetLocalizationScoreData(const float localization_score, const bool pause_optimization_sign, const float global_pose_x, const float global_pose_y){
+  pause_optimization_sign_ = pause_optimization_sign;
   localization_score_ = localization_score;
 }
 

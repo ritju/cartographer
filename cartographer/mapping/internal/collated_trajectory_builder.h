@@ -91,7 +91,8 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
                                   local_slam_result_data) override {
     AddData(std::move(local_slam_result_data));
   }
-  void SetLocalizationScore(const float localization_score, const float global_pose_x, const float global_pose_y) override {
+  void SetLocalizationScore(const float localization_score, const bool pause_optimization_sign, const float global_pose_x, const float global_pose_y) override {
+    pause_optimization_sign_ = pause_optimization_sign;
     localization_score_ = localization_score;
     global_pose_x_ = global_pose_x;
     global_pose_y_ = global_pose_y;   
@@ -113,6 +114,7 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
   std::chrono::steady_clock::time_point last_logging_time_;
   std::map<std::string, common::RateTimer<>> rate_timers_;
   float localization_score_;
+  bool pause_optimization_sign_;
   float global_pose_x_, global_pose_y_;
 };
 

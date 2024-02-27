@@ -49,8 +49,7 @@ static auto* kActiveSubmapsMetric = metrics::Gauge::Null();
 static auto* kFrozenSubmapsMetric = metrics::Gauge::Null();
 static auto* kDeletedSubmapsMetric = metrics::Gauge::Null();
 
-double min_localization_score_for_optimize_env = std::stod(getenv("MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE"));
-
+double min_localization_score_for_optimize_env = 0.7;
 PoseGraph2D::PoseGraph2D(
     const proto::PoseGraphOptions& options,
     std::unique_ptr<optimization::OptimizationProblem2D> optimization_problem,
@@ -59,7 +58,8 @@ PoseGraph2D::PoseGraph2D(
       optimization_problem_(std::move(optimization_problem)),
       constraint_builder_(options_.constraint_builder_options(), thread_pool),
       thread_pool_(thread_pool),
-      localization_score_(0) {
+      localization_score_(0),
+      pause_optimization_sign_(false) {
   if (options.has_overlapping_submaps_trimmer_2d()) {
     const auto& trimmer_options = options.overlapping_submaps_trimmer_2d();
     AddTrimmer(absl::make_unique<OverlappingSubmapsTrimmer2D>(
@@ -230,11 +230,11 @@ void PoseGraph2D::AddOdometryData(const int trajectory_id,
     return WorkItem::Result::kDoNotRunOptimization;
   });
 }
-void PoseGraph2D::SetLocalizationScoreData(const float localization_score, const float global_pose_x, const float global_pose_y){
+void PoseGraph2D::SetLocalizationScoreData(const float localization_score, const bool pause_optimization_sign, const float global_pose_x, const float global_pose_y){
+  pause_optimization_sign_ = pause_optimization_sign;
   localization_score_ = localization_score;
   global_pose_x_ = global_pose_x;
   global_pose_y_ = global_pose_y;
-  // LOG(INFO) << "PoseGraph2D::SetLocalizationScoreData" << localization_score_;
 }
 
 void PoseGraph2D::AddFixedFramePoseData(
@@ -390,11 +390,14 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
       newly_finished_submap_node_ids = finished_submap_data.node_ids;
     }
   }
-  for (const auto& submap_id : finished_submap_ids) {
-    ComputeConstraint(node_id, submap_id);
+  if (!pause_optimization_sign_)
+  {
+    for (const auto& submap_id : finished_submap_ids) {
+      ComputeConstraint(node_id, submap_id);
+    }
   }
-
-  if (newly_finished_submap) {
+  
+  if (newly_finished_submap && !pause_optimization_sign_) {
     const SubmapId newly_finished_submap_id = submap_ids.front();
     // We have a new completed submap, so we look into adding constraints for
     // old nodes.
@@ -405,11 +408,19 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
       }
     }
   }
+  try
+  {
+    min_localization_score_for_optimize_env = std::stod(getenv("MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE"));
+  }
+  catch(...)
+  {
+    LOG(WARNING) << "ENV MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE not set! Use default value: 0.7";
+  }
   constraint_builder_.NotifyEndOfNode();
   absl::MutexLock locker(&mutex_);
   ++num_nodes_since_last_loop_closure_;
-  if ((options_.optimize_every_n_nodes() > 0 &&
-      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) || localization_score_ < min_localization_score_for_optimize_env) {
+  if (((options_.optimize_every_n_nodes() > 0 &&
+      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) || localization_score_ < min_localization_score_for_optimize_env) && (!pause_optimization_sign_)) {
     return WorkItem::Result::kRunOptimization;
   }
   return WorkItem::Result::kDoNotRunOptimization;

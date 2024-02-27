@@ -44,12 +44,12 @@ void Collator::AddSensorData(const int trajectory_id,
   QueueKey queue_key{trajectory_id, data->GetSensorId()};
   queue_.Add(std::move(queue_key), std::move(data));
 }
-void Collator::SetLocalizationScore(float localization_score, float global_pose_x, float global_pose_y)
+void Collator::SetLocalizationScore(float localization_score, bool pause_optimization_sign, float global_pose_x, float global_pose_y)
 {
+  pause_optimization_sign_ = pause_optimization_sign;
   localization_score_ = localization_score;
   global_pose_x_ = global_pose_x;
   global_pose_y_ = global_pose_y;
-  // LOG(INFO) << "Collator::SetLocalizationScore" << localization_score_;
 }
 
 void Collator::Flush() { queue_.Flush(); }

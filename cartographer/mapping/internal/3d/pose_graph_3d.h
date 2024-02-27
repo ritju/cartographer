@@ -83,7 +83,7 @@ class PoseGraph3D : public PoseGraph {
 
   void AddImuData(int trajectory_id, const sensor::ImuData& imu_data) override
       LOCKS_EXCLUDED(mutex_);
-  void SetLocalizationScoreData(const float localization_score, const float global_pose_x, const float global_pose_y)
+  void SetLocalizationScoreData(const float localization_score, const bool pause_optimization_sign, const float global_pose_x, const float global_pose_y)
       LOCKS_EXCLUDED(mutex_);
   void AddOdometryData(int trajectory_id,
                        const sensor::OdometryData& odometry_data) override
@@ -270,6 +270,7 @@ class PoseGraph3D : public PoseGraph {
 
   PoseGraphData data_ GUARDED_BY(mutex_);
   mutable float localization_score_;
+  mutable bool pause_optimization_sign_;
   mutable float global_pose_x_, global_pose_y_;
 
   // Allows querying and manipulating the pose graph by the 'trimmers_'. The

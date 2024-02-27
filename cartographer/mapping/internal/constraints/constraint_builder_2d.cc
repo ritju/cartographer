@@ -55,7 +55,8 @@ static auto* kNumSubmapScanMatchersMetric = metrics::Gauge::Null();
 transform::Rigid2d ComputeSubmapPose(const Submap2D& submap) {
   return transform::Project2D(submap.local_pose());
 }
-double maybe_add_local_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD"));
+
+double maybe_add_local_constraint_threshold_env = 0.7;
 
 ConstraintBuilder2D::ConstraintBuilder2D(
     const constraints::proto::ConstraintBuilderOptions& options,
@@ -66,6 +67,7 @@ ConstraintBuilder2D::ConstraintBuilder2D(
       when_done_task_(absl::make_unique<common::Task>()),
       ceres_scan_matcher_(options.ceres_scan_matcher_options()),
       localization_score_(0),
+      pause_optimization_sign_(false),
       node_localization_score_(0.1) {}
 
 ConstraintBuilder2D::~ConstraintBuilder2D() {
@@ -81,6 +83,15 @@ void ConstraintBuilder2D::MaybeAddConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data,
     const transform::Rigid2d& initial_relative_pose, float node_localization_score) {
+
+  try
+  {
+    maybe_add_local_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD"));
+  }
+  catch(...)
+  {
+    LOG(WARNING) << "ENV MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD not set! Use default value: 0.7";
+  }
   if (initial_relative_pose.translation().norm() >
       options_.max_constraint_distance()) {
     return;
