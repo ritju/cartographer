@@ -40,6 +40,7 @@ namespace {
 // All of it in (amortized) O(1).
 
 int global_linear_search_window_env = 300;
+double localization_score_threshold_for_fast_correlative = 0.6;
 class SlidingWindowMaximum {
  public:
   void AddValue(const float value) {
@@ -195,7 +196,17 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       precomputation_grid_stack_(
           absl::make_unique<PrecomputationGridStack2D>(grid, options)),
       localization_score_(0),
-      pause_optimization_sign_(false) {}
+      pause_optimization_sign_(false) {
+    try
+    {
+      global_linear_search_window_env = std::stoi(getenv("GLOBAL_LINEAR_SEARCH_WINDOW"));
+      localization_score_threshold_for_fast_correlative = std::stod(getenv("LOCALIZATION_SCORE_THRESHOLD_FOR_FAST_CORRELATIVE"));
+    }
+    catch(...)
+    {
+      LOG(WARNING) << "ENV GLOBAL_LINEAR_SEARCH_WINDOW not set! Use default value: 300! " << "ENV LOCALIZATION_SCORE_THRESHOLD_FOR_FAST_CORRELATIVE not set! Use default value: 0.6! ";
+    }
+}
 
 FastCorrelativeScanMatcher2D::~FastCorrelativeScanMatcher2D() {}
 
@@ -216,16 +227,9 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
     transform::Rigid2d* pose_estimate, float localization_score) const {
   // Compute a search window around the center of the submap that includes it
   // fully.
-  try
-  {
-    global_linear_search_window_env = std::stoi(getenv("GLOBAL_LINEAR_SEARCH_WINDOW"));
-  }
-  catch(...)
-  {
-    LOG(WARNING) << "ENV GLOBAL_LINEAR_SEARCH_WINDOW not set! Use default value: 300";
-  }
+
   localization_score_ = localization_score;
-  int global_linear_search_window = (localization_score_ > 0.6) ? global_linear_search_window_env : 1e6;
+  int global_linear_search_window = (localization_score_ >localization_score_threshold_for_fast_correlative) ? global_linear_search_window_env : 1e6;
   // double global_angular_search_window = (localization_score_ > 0.6) ? M_PI/2 : M_PI;
   const SearchParameters search_parameters(
       global_linear_search_window * limits_.resolution(),  // Linear search window, 1e6 cells/direction.

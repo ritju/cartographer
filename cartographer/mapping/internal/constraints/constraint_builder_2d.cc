@@ -68,7 +68,16 @@ ConstraintBuilder2D::ConstraintBuilder2D(
       ceres_scan_matcher_(options.ceres_scan_matcher_options()),
       localization_score_(0),
       pause_optimization_sign_(false),
-      node_localization_score_(0.1) {}
+      node_localization_score_(0.1) {
+    try
+    {
+      maybe_add_local_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD"));
+    }
+    catch(...)
+    {
+      LOG(WARNING) << "ENV MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD not set! Use default value: 0.7";
+    }
+      }
 
 ConstraintBuilder2D::~ConstraintBuilder2D() {
   absl::MutexLock locker(&mutex_);
@@ -84,14 +93,7 @@ void ConstraintBuilder2D::MaybeAddConstraint(
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data,
     const transform::Rigid2d& initial_relative_pose, float node_localization_score) {
 
-  try
-  {
-    maybe_add_local_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD"));
-  }
-  catch(...)
-  {
-    LOG(WARNING) << "ENV MAYBE_ADD_LOCAL_CONSTRAINT_THRESHOLD not set! Use default value: 0.7";
-  }
+
   if (initial_relative_pose.translation().norm() >
       options_.max_constraint_distance()) {
     return;
@@ -99,7 +101,7 @@ void ConstraintBuilder2D::MaybeAddConstraint(
   if ((!per_submap_sampler_
            .emplace(std::piecewise_construct, std::forward_as_tuple(submap_id),
                     std::forward_as_tuple(options_.sampling_ratio()))
-           .first->second.Pulse()) && (localization_score_ > maybe_add_local_constraint_threshold_env)) {
+           .first->second.Pulse())) {
     return;
   }
 

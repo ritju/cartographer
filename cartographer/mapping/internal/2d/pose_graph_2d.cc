@@ -50,6 +50,8 @@ static auto* kFrozenSubmapsMetric = metrics::Gauge::Null();
 static auto* kDeletedSubmapsMetric = metrics::Gauge::Null();
 
 double min_localization_score_for_optimize_env = 0.7;
+double max_optimization_range_env = 4;
+double maybe_add_global_constraint_threshold_env = 0.5;
 PoseGraph2D::PoseGraph2D(
     const proto::PoseGraphOptions& options,
     std::unique_ptr<optimization::OptimizationProblem2D> optimization_problem,
@@ -66,6 +68,18 @@ PoseGraph2D::PoseGraph2D(
         trimmer_options.fresh_submaps_count(),
         trimmer_options.min_covered_area(),
         trimmer_options.min_added_submaps_count()));
+  }
+  try
+  {
+    min_localization_score_for_optimize_env = std::stod(getenv("MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE"));
+    max_optimization_range_env = std::stod(getenv("MAX_OPTIMIZATION_RANGE"));
+    maybe_add_global_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_GLOBAL_CONSTRAINT_THRESHOLD"));
+  }
+  catch(...)
+  {
+    LOG(WARNING) << "ENV MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE not set! Use default value: 0.7! " 
+                 << "ENV MAX_OPTIMIZATION_RANGE not set! Use default value: 5! "
+                 << "ENV MAYBE_ADD_GLOBAL_CONSTRAINT_THRESHOLD not set! Use default value: 0.5! ";
   }
 }
 
@@ -296,7 +310,7 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
       // the submap's trajectory, it suffices to do a match constrained to a
       // local search window.
       maybe_add_local_constraint = true;
-    } else if (global_localization_samplers_[node_id.trajectory_id]->Pulse()) {
+    } else if (global_localization_samplers_[node_id.trajectory_id]->Pulse() || localization_score_ < maybe_add_global_constraint_threshold_env) {
       maybe_add_global_constraint = true;
     }
     constant_data = data_.trajectory_nodes.at(node_id).constant_data.get();
@@ -408,19 +422,12 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
       }
     }
   }
-  try
-  {
-    min_localization_score_for_optimize_env = std::stod(getenv("MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE"));
-  }
-  catch(...)
-  {
-    LOG(WARNING) << "ENV MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE not set! Use default value: 0.7";
-  }
+
   constraint_builder_.NotifyEndOfNode();
   absl::MutexLock locker(&mutex_);
   ++num_nodes_since_last_loop_closure_;
-  if (((options_.optimize_every_n_nodes() > 0 &&
-      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) || localization_score_ < min_localization_score_for_optimize_env) && (!pause_optimization_sign_)) {
+  if ((options_.optimize_every_n_nodes() > 0 &&
+      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) && (!pause_optimization_sign_)) {
     return WorkItem::Result::kRunOptimization;
   }
   return WorkItem::Result::kDoNotRunOptimization;
@@ -912,7 +919,7 @@ void PoseGraph2D::RunOptimization() {
     auto submap_global_pose = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
     const auto optimized_submap_global_pose = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
     auto distance_diff = sqrt(pow(submap_global_pose[0] - optimized_submap_global_pose[0], 2) + pow(submap_global_pose[1] - optimized_submap_global_pose[1], 2));
-    if ( localization_score_ > 0.7 && distance_diff > 4)
+    if ( localization_score_ > min_localization_score_for_optimize_env && distance_diff > max_optimization_range_env)
     {
       optimization_problem_->submap_data() = before_optimize_submap_data;
       data_.global_submap_poses_2d = optimization_problem_->submap_data();
