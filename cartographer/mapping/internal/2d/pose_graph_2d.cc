@@ -310,7 +310,7 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
       // the submap's trajectory, it suffices to do a match constrained to a
       // local search window.
       maybe_add_local_constraint = true;
-    } else if (global_localization_samplers_[node_id.trajectory_id]->Pulse() || localization_score_ < maybe_add_global_constraint_threshold_env) {
+    } else if (global_localization_samplers_[node_id.trajectory_id]->Pulse()) {
       maybe_add_global_constraint = true;
     }
     constant_data = data_.trajectory_nodes.at(node_id).constant_data.get();
@@ -404,14 +404,11 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
       newly_finished_submap_node_ids = finished_submap_data.node_ids;
     }
   }
-  if (!pause_optimization_sign_)
-  {
-    for (const auto& submap_id : finished_submap_ids) {
-      ComputeConstraint(node_id, submap_id);
-    }
+  for (const auto& submap_id : finished_submap_ids) {
+    ComputeConstraint(node_id, submap_id);
   }
   
-  if (newly_finished_submap && !pause_optimization_sign_) {
+  if (newly_finished_submap) {
     const SubmapId newly_finished_submap_id = submap_ids.front();
     // We have a new completed submap, so we look into adding constraints for
     // old nodes.
@@ -426,8 +423,8 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
   constraint_builder_.NotifyEndOfNode();
   absl::MutexLock locker(&mutex_);
   ++num_nodes_since_last_loop_closure_;
-  if ((options_.optimize_every_n_nodes() > 0 &&
-      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) && (!pause_optimization_sign_)) {
+  if (options_.optimize_every_n_nodes() > 0 &&
+      num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) {
     return WorkItem::Result::kRunOptimization;
   }
   return WorkItem::Result::kDoNotRunOptimization;
