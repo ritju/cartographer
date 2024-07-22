@@ -168,7 +168,7 @@ class FastCorrelativeScanMatcher2D {
   MapLimits limits_;
   std::unique_ptr<PrecomputationGridStack2D> precomputation_grid_stack_;
   mutable float localization_score_;
-  mutable bool pause_optimization_sign_;
+  mutable std::vector<float> corrected_submap_pose_;
   mutable float global_pose_x_, global_pose_y_;
   transform::Rigid2d node_globle_pose_;
   transform::Rigid2d submap_globle_pose_;

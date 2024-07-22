@@ -50,7 +50,7 @@ class TrajectoryCollator : public CollatorInterface {
   void FinishTrajectory(int trajectory_id) override;
 
   void AddSensorData(int trajectory_id, std::unique_ptr<Data> data) override;
-  void SetLocalizationScore(float localization_score, bool pause_optimization_sign, const float global_pose_x, const float global_pose_y) override;
+  void SetLocalizationScore(float localization_score, std::vector<float> corrected_submap_pose, const float global_pose_x, const float global_pose_y) override;
 
   void Flush() override;
 

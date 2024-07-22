@@ -170,7 +170,7 @@ class ConstraintBuilder2D {
   // Histogram of scan matcher scores.
   common::Histogram score_histogram_ GUARDED_BY(mutex_);
   float localization_score_;
-  bool pause_optimization_sign_;
+  std::vector<float> corrected_submap_pose_;
   float global_pose_x_, global_pose_y_;
   transform::Rigid2d node_gloable_pose_;
   transform::Rigid2d submap_globle_pose_;

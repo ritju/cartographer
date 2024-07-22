@@ -47,7 +47,7 @@ class Collator : public CollatorInterface {
   void AddSensorData(int trajectory_id, std::unique_ptr<Data> data) override;
 
   void Flush() override;
-  void SetLocalizationScore(float localization_score, bool pause_optimization_sign, const float global_pose_x, const float global_pose_y) override;
+  void SetLocalizationScore(float localization_score, std::vector<float> corrected_submap_pose, const float global_pose_x, const float global_pose_y) override;
 
   absl::optional<int> GetBlockingTrajectoryId() const override;
 
@@ -58,7 +58,7 @@ class Collator : public CollatorInterface {
   // Map of trajectory ID to all associated QueueKeys.
   absl::flat_hash_map<int, std::vector<QueueKey>> queue_keys_;
   float localization_score_;
-  bool pause_optimization_sign_;
+  std::vector<float> corrected_submap_pose_;
   float global_pose_x_, global_pose_y_;
 };
 

@@ -55,9 +55,9 @@ void TrajectoryCollator::AddSensorData(const int trajectory_id,
       .Add(std::move(queue_key), std::move(data));
 }
 
-void TrajectoryCollator::SetLocalizationScore(float localization_score, bool pause_optimization_sign, float global_pose_x, float global_pose_y){
+void TrajectoryCollator::SetLocalizationScore(float localization_score, std::vector<float> corrected_submap_pose, float global_pose_x, float global_pose_y){
   localization_score;
-  pause_optimization_sign;
+  corrected_submap_pose;
 }
 void TrajectoryCollator::Flush() {
   for (auto& it : trajectory_to_queue_) {

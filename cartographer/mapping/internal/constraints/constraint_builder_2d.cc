@@ -67,7 +67,7 @@ ConstraintBuilder2D::ConstraintBuilder2D(
       when_done_task_(absl::make_unique<common::Task>()),
       ceres_scan_matcher_(options.ceres_scan_matcher_options()),
       localization_score_(0),
-      pause_optimization_sign_(false),
+      corrected_submap_pose_(10),
       node_localization_score_(0.1) {
     try
     {

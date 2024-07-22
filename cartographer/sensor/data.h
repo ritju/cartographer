@@ -38,8 +38,8 @@ class Data {
   const std::string &GetSensorId() const { return sensor_id_; }
   virtual void AddToTrajectoryBuilder(
       mapping::TrajectoryBuilderInterface *trajectory_builder) = 0;
-  virtual void SetLocalizationScore(float localization_score, bool pause_optimization_sign, float global_pose_x, float global_pose_y){
-    pause_optimization_sign_ = pause_optimization_sign;
+  virtual void SetLocalizationScore(float localization_score, std::vector<float> corrected_submap_pose, float global_pose_x, float global_pose_y){
+    corrected_submap_pose_ = corrected_submap_pose;
     localization_score_ = localization_score;
     global_pose_x_ = global_pose_x;
     global_pose_y_ = global_pose_y;
@@ -48,7 +48,7 @@ class Data {
  protected:
   const std::string sensor_id_;
   float localization_score_;
-  bool pause_optimization_sign_;
+  std::vector<float> corrected_submap_pose_;
   float global_pose_x_, global_pose_y_;
 };
 

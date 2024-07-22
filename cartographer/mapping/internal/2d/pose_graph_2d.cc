@@ -61,7 +61,7 @@ PoseGraph2D::PoseGraph2D(
       constraint_builder_(options_.constraint_builder_options(), thread_pool),
       thread_pool_(thread_pool),
       localization_score_(0),
-      pause_optimization_sign_(false) {
+      corrected_submap_pose_(10) {
   if (options.has_overlapping_submaps_trimmer_2d()) {
     const auto& trimmer_options = options.overlapping_submaps_trimmer_2d();
     AddTrimmer(absl::make_unique<OverlappingSubmapsTrimmer2D>(
@@ -244,8 +244,8 @@ void PoseGraph2D::AddOdometryData(const int trajectory_id,
     return WorkItem::Result::kDoNotRunOptimization;
   });
 }
-void PoseGraph2D::SetLocalizationScoreData(const float localization_score, const bool pause_optimization_sign, const float global_pose_x, const float global_pose_y){
-  pause_optimization_sign_ = pause_optimization_sign;
+void PoseGraph2D::SetLocalizationScoreData(const float localization_score, const std::vector<float> corrected_submap_pose, const float global_pose_x, const float global_pose_y){
+  corrected_submap_pose_ = corrected_submap_pose;
   localization_score_ = localization_score;
   global_pose_x_ = global_pose_x;
   global_pose_y_ = global_pose_y;
@@ -900,9 +900,12 @@ void PoseGraph2D::RunOptimization() {
   auto before_optimize_submap_data = optimization_problem_->submap_data(); //保存优化前的submap_data_
   optimization_problem_->Solve(data_.constraints, GetTrajectoryStates(),
                                data_.landmark_nodes);
-
+  
   absl::MutexLock locker(&mutex_);
-
+  // 调试关闭后端优化
+  // optimization_problem_->submap_data() = before_optimize_submap_data;
+  // data_.global_submap_poses_2d = optimization_problem_->submap_data();
+  // 调试关闭后端优化
   
 
   const auto& submap_data = optimization_problem_->submap_data();
@@ -916,12 +919,28 @@ void PoseGraph2D::RunOptimization() {
     auto submap_global_pose = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
     const auto optimized_submap_global_pose = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
     auto distance_diff = sqrt(pow(submap_global_pose[0] - optimized_submap_global_pose[0], 2) + pow(submap_global_pose[1] - optimized_submap_global_pose[1], 2));
-    if ( localization_score_ > min_localization_score_for_optimize_env && distance_diff > max_optimization_range_env)
+    if (localization_score_ > min_localization_score_for_optimize_env && distance_diff > max_optimization_range_env)
     {
       optimization_problem_->submap_data() = before_optimize_submap_data;
       data_.global_submap_poses_2d = optimization_problem_->submap_data();
       return;
     }
+
+    // LOG(INFO) << "******** corrected_submap_pose_.size()******** " << corrected_submap_pose_.size();
+    if (localization_score_ < min_localization_score_for_optimize_env && corrected_submap_pose_.size() == 10)
+    {
+      SubmapId corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1]);
+      auto translation = Eigen::Matrix<double, 2, 1>(corrected_submap_pose_[3], corrected_submap_pose_[4]);
+      double angle = transform::GetYaw<double>(Eigen::Quaternion<double>(corrected_submap_pose_[9], corrected_submap_pose_[6], corrected_submap_pose_[7], corrected_submap_pose_[8]));
+      transform::Rigid2<double> transformation(translation, angle);
+      transform::Rigid2d corrected_submap_global_pose(transformation);
+      if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end())
+      {
+        optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
+        LOG(INFO) << "******** Do Optimization ! ******** ";
+      }
+    }
+
   }
 
   for (const int trajectory_id : node_data.trajectory_ids()) {

@@ -49,7 +49,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
         local_slam_result_callback_(local_slam_result_callback),
         pose_graph_odometry_motion_filter_(pose_graph_odometry_motion_filter),
         localization_score_(0),
-        pause_optimization_sign_(false) {}
+        corrected_submap_pose_(10) {}
   ~GlobalTrajectoryBuilder() override {}
 
   GlobalTrajectoryBuilder(const GlobalTrajectoryBuilder&) = delete;
@@ -71,7 +71,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     std::unique_ptr<InsertionResult> insertion_result;
     if (matching_result->insertion_result != nullptr) {
       kLocalSlamInsertionResults->Increment();
-      pose_graph_->SetLocalizationScoreData(localization_score_, pause_optimization_sign_, global_pose_x_, global_pose_y_);
+      pose_graph_->SetLocalizationScoreData(localization_score_, corrected_submap_pose_, global_pose_x_, global_pose_y_);
       auto node_id = pose_graph_->AddNode(
           matching_result->insertion_result->constant_data, trajectory_id_,
           matching_result->insertion_result->insertion_submaps);
@@ -136,8 +136,8 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
                                          "local_trajectory_builder_ present.";
     local_slam_result_data->AddToPoseGraph(trajectory_id_, pose_graph_);
   }
-  void SetLocalizationScore(float localization_score, bool pause_optimization_sign, const float global_pose_x, const float global_pose_y){
-    pause_optimization_sign_ = pause_optimization_sign;
+  void SetLocalizationScore(float localization_score, std::vector<float> corrected_submap_pose, const float global_pose_x, const float global_pose_y){
+    corrected_submap_pose_ = corrected_submap_pose;
     localization_score_ = localization_score;
     global_pose_x_ = global_pose_x;
     global_pose_y_ = global_pose_y;
@@ -150,7 +150,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
   LocalSlamResultCallback local_slam_result_callback_;
   absl::optional<MotionFilter> pose_graph_odometry_motion_filter_;
   float localization_score_;
-  bool pause_optimization_sign_;
+  std::vector<float> corrected_submap_pose_;
   float global_pose_x_, global_pose_y_;
 };
 

@@ -88,7 +88,7 @@ class PoseGraph2D : public PoseGraph {
   void AddOdometryData(int trajectory_id,
                        const sensor::OdometryData& odometry_data) override
       LOCKS_EXCLUDED(mutex_);
-  void SetLocalizationScoreData(const float localization_score, const bool pause_optimization_sign, const float global_pose_x, const float global_pose_y)
+  void SetLocalizationScoreData(const float localization_score, const std::vector<float> corrected_submap_pose, const float global_pose_x, const float global_pose_y)
       LOCKS_EXCLUDED(mutex_);
   void AddFixedFramePoseData(
       int trajectory_id,
@@ -270,7 +270,7 @@ class PoseGraph2D : public PoseGraph {
 
   ValueConversionTables conversion_tables_;
   float localization_score_;
-  bool pause_optimization_sign_;
+  std::vector<float> corrected_submap_pose_;
   float global_pose_x_, global_pose_y_;
 
   // Allows querying and manipulating the pose graph by the 'trimmers_'. The

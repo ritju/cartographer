@@ -196,7 +196,7 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       precomputation_grid_stack_(
           absl::make_unique<PrecomputationGridStack2D>(grid, options)),
       localization_score_(0),
-      pause_optimization_sign_(false) {
+      corrected_submap_pose_(10) {
     try
     {
       global_linear_search_window_env = std::stoi(getenv("GLOBAL_LINEAR_SEARCH_WINDOW"));
