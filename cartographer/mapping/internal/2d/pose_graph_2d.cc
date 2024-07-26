@@ -902,10 +902,10 @@ void PoseGraph2D::RunOptimization() {
                                data_.landmark_nodes);
   
   absl::MutexLock locker(&mutex_);
-  // 调试关闭后端优化
+  // // 调试关闭后端优化
   // optimization_problem_->submap_data() = before_optimize_submap_data;
   // data_.global_submap_poses_2d = optimization_problem_->submap_data();
-  // 调试关闭后端优化
+  // // 调试关闭后端优化
   
 
   const auto& submap_data = optimization_problem_->submap_data();
@@ -922,19 +922,21 @@ void PoseGraph2D::RunOptimization() {
     if (localization_score_ > min_localization_score_for_optimize_env && distance_diff > max_optimization_range_env)
     {
       optimization_problem_->submap_data() = before_optimize_submap_data;
-      data_.global_submap_poses_2d = optimization_problem_->submap_data();
-      return;
+      // data_.global_submap_poses_2d = optimization_problem_->submap_data();
+      // return;
     }
 
     // LOG(INFO) << "******** corrected_submap_pose_.size()******** " << corrected_submap_pose_.size();
     if (localization_score_ < min_localization_score_for_optimize_env && corrected_submap_pose_.size() == 10)
     {
       SubmapId corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1]);
+      SubmapId latest_corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1] + 1);
       auto translation = Eigen::Matrix<double, 2, 1>(corrected_submap_pose_[3], corrected_submap_pose_[4]);
       double angle = transform::GetYaw<double>(Eigen::Quaternion<double>(corrected_submap_pose_[9], corrected_submap_pose_[6], corrected_submap_pose_[7], corrected_submap_pose_[8]));
       transform::Rigid2<double> transformation(translation, angle);
       transform::Rigid2d corrected_submap_global_pose(transformation);
-      if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end())
+      if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end() && 
+          optimization_problem_->submap_data().find(latest_corrected_submap_id) == optimization_problem_->submap_data().end())
       {
         optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
         LOG(INFO) << "******** Do Optimization ! ******** ";
