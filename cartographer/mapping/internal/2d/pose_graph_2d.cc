@@ -919,10 +919,11 @@ void PoseGraph2D::RunOptimization() {
     auto submap_global_pose = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
     const auto optimized_submap_global_pose = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
     auto distance_diff = sqrt(pow(submap_global_pose[0] - optimized_submap_global_pose[0], 2) + pow(submap_global_pose[1] - optimized_submap_global_pose[1], 2));
-    if (localization_score_ > min_localization_score_for_optimize_env && distance_diff > max_optimization_range_env)
+    if ((localization_score_ > min_localization_score_for_optimize_env && distance_diff > max_optimization_range_env) || 
+        ((localization_score_ > 0.5) && (distance_diff > (1 - localization_score_) * 2.5)))
     {
       optimization_problem_->submap_data() = before_optimize_submap_data;
-      // data_.global_submap_poses_2d = optimization_problem_->submap_data();
+      data_.global_submap_poses_2d = optimization_problem_->submap_data();
       // return;
     }
 
@@ -938,8 +939,15 @@ void PoseGraph2D::RunOptimization() {
       if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end() && 
           optimization_problem_->submap_data().find(latest_corrected_submap_id) == optimization_problem_->submap_data().end())
       {
-        optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
-        LOG(INFO) << "******** Do Optimization ! ******** ";
+        auto distance_diff = sqrt(pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().x() - corrected_submap_global_pose.translation().x(), 2) + 
+                             pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().y() - corrected_submap_global_pose.translation().y(), 2));
+        if (localization_score_ < 0.5 || distance_diff < (1 - localization_score_) * 2.5)
+        {
+          optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
+          data_.global_submap_poses_2d = optimization_problem_->submap_data();
+          LOG(INFO) << "******** Do Optimization ! ******** ";
+        }
+
       }
     }
 
