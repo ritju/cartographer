@@ -50,8 +50,9 @@ static auto* kFrozenSubmapsMetric = metrics::Gauge::Null();
 static auto* kDeletedSubmapsMetric = metrics::Gauge::Null();
 
 double min_localization_score_for_optimize_env = 0.7;
-double max_optimization_range_env = 4;
+double max_optimization_range_env = 4.0;
 double maybe_add_global_constraint_threshold_env = 0.5;
+double max_optimization_angle_env = 45.0;
 PoseGraph2D::PoseGraph2D(
     const proto::PoseGraphOptions& options,
     std::unique_ptr<optimization::OptimizationProblem2D> optimization_problem,
@@ -73,6 +74,7 @@ PoseGraph2D::PoseGraph2D(
   {
     min_localization_score_for_optimize_env = std::stod(getenv("MIN_LOCALIZATION_SCORE_FOR_OPTIMIZE"));
     max_optimization_range_env = std::stod(getenv("MAX_OPTIMIZATION_RANGE"));
+    max_optimization_angle_env = std::stod(getenv("MAX_OPTIMIZATION_ANGLE"));
     maybe_add_global_constraint_threshold_env = std::stod(getenv("MAYBE_ADD_GLOBAL_CONSTRAINT_THRESHOLD"));
   }
   catch(...)
@@ -914,43 +916,123 @@ void PoseGraph2D::RunOptimization() {
   /*
   首先判断是否需要优化submap位姿，如果距离超过阈值直接退出
   */
-  for (const int trajectory_id : data_.trajectory_nodes.trajectory_ids())
-  {
-    auto submap_global_pose = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
-    const auto optimized_submap_global_pose = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
-    auto distance_diff = sqrt(pow(submap_global_pose[0] - optimized_submap_global_pose[0], 2) + pow(submap_global_pose[1] - optimized_submap_global_pose[1], 2));
-    if (distance_diff > max_optimization_range_env)
-    {
+
+  // 是否接受优化结果
+  bool accept_optimization = true;
+  std::string rejection_reason = "";
+  for (const int trajectory_id : node_data.trajectory_ids()) {
+    if (node_data.trajectory(trajectory_id).begin() == node_data.trajectory(trajectory_id).end()) {
+      continue;
+    }
+    // 获取当前轨迹的最新节点（代表机器人当前位置）
+    const auto& latest_node = *std::prev(node_data.EndOfTrajectory(trajectory_id));
+    const NodeId latest_node_id = latest_node.id;
+    if (!data_.trajectory_nodes.Contains(latest_node_id)) {
+      continue;
+    }
+    // 获取优化前后该节点的位姿
+    const auto& pre_optimized_pose = data_.trajectory_nodes.at(latest_node_id).global_pose;
+    const auto& optimized_pose_2d = latest_node.data.global_pose_2d;
+    const auto optimized_pose_3d = transform::Embed3D(optimized_pose_2d);
+    // 计算距离变化（欧氏距离）
+    double distance_change = (pre_optimized_pose.translation() - 
+                             optimized_pose_3d.translation()).norm();
+    
+    // 计算角度变化（使用四元数的angularDistance方法）
+    double angle_change_rad = pre_optimized_pose.rotation().angularDistance(
+        optimized_pose_3d.rotation());
+    double angle_change_deg = angle_change_rad * 180.0 / M_PI;
+    LOG(INFO) << "Trajectory " << trajectory_id 
+            << " - Latest node pose change - Distance: " << distance_change 
+            << " m, Angle: " << angle_change_deg << " deg";
+    // 判断是否超过阈值
+    if (distance_change > max_optimization_range_env) {
+      accept_optimization = false;
+      rejection_reason = absl::StrCat("Distance change too large: ", distance_change, "m");
+      break;
+    }
+    if (std::fabs(angle_change_deg) > max_optimization_angle_env) {
+      accept_optimization = false;
+      rejection_reason = absl::StrCat("Angle change too large: ", angle_change_deg, "deg");
+      break;
+    }
+    // 根据判断结果决定是否接受优化
+    if (!accept_optimization) {
+      // 恢复优化前的子图数据，不接受优化结果
       optimization_problem_->submap_data() = before_optimize_submap_data;
       data_.global_submap_poses_2d = optimization_problem_->submap_data();
-      // return;
+      LOG(WARNING) << "Optimization rejected for trajectory. Reason: " << rejection_reason;
     }
+    // if (localization_score_ < min_localization_score_for_optimize_env && corrected_submap_pose_.size() == 10)
+    // {
+    //   SubmapId corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1]);
+    //   SubmapId latest_corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1] + 1);
+    //   auto translation = Eigen::Matrix<double, 2, 1>(corrected_submap_pose_[3], corrected_submap_pose_[4]);
+    //   double angle = transform::GetYaw<double>(Eigen::Quaternion<double>(corrected_submap_pose_[9], corrected_submap_pose_[6], corrected_submap_pose_[7], corrected_submap_pose_[8]));
+    //   transform::Rigid2<double> transformation(translation, angle);
+    //   transform::Rigid2d corrected_submap_global_pose(transformation);
+    //   if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end() && 
+    //       optimization_problem_->submap_data().find(latest_corrected_submap_id) == optimization_problem_->submap_data().end())
+    //   {
+    //     auto distance_diff = sqrt(pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().x() - corrected_submap_global_pose.translation().x(), 2) + 
+    //                          pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().y() - corrected_submap_global_pose.translation().y(), 2));
+    //     if (localization_score_ < 0.5 || distance_diff < (1 - localization_score_) * 2.5)
+    //     {
+    //       optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
+    //       data_.global_submap_poses_2d = optimization_problem_->submap_data();
+    //       LOG(INFO) << "******** Do Optimization ! ******** ";
+    //     }
 
-    // LOG(INFO) << "******** corrected_submap_pose_.size()******** " << corrected_submap_pose_.size();
-    if (localization_score_ < min_localization_score_for_optimize_env && corrected_submap_pose_.size() == 10)
-    {
-      SubmapId corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1]);
-      SubmapId latest_corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1] + 1);
-      auto translation = Eigen::Matrix<double, 2, 1>(corrected_submap_pose_[3], corrected_submap_pose_[4]);
-      double angle = transform::GetYaw<double>(Eigen::Quaternion<double>(corrected_submap_pose_[9], corrected_submap_pose_[6], corrected_submap_pose_[7], corrected_submap_pose_[8]));
-      transform::Rigid2<double> transformation(translation, angle);
-      transform::Rigid2d corrected_submap_global_pose(transformation);
-      if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end() && 
-          optimization_problem_->submap_data().find(latest_corrected_submap_id) == optimization_problem_->submap_data().end())
-      {
-        auto distance_diff = sqrt(pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().x() - corrected_submap_global_pose.translation().x(), 2) + 
-                             pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().y() - corrected_submap_global_pose.translation().y(), 2));
-        if (localization_score_ < 0.5 || distance_diff < (1 - localization_score_) * 2.5)
-        {
-          optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
-          data_.global_submap_poses_2d = optimization_problem_->submap_data();
-          LOG(INFO) << "******** Do Optimization ! ******** ";
-        }
-
-      }
-    }
-
+    //   }
+    // }
   }
+
+  // for (const int trajectory_id : data_.trajectory_nodes.trajectory_ids())
+  // {
+  //   auto submap_global_pose_translation = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).translation();
+  //   const auto optimized_submap_global_pose_translation = ComputeLocalToGlobalTransform(submap_data, trajectory_id).translation();
+  //   auto submap_global_pose_rotation = ComputeLocalToGlobalTransform(data_.global_submap_poses_2d, trajectory_id).rotation();
+  //   const auto optimized_submap_global_pose_rotation = ComputeLocalToGlobalTransform(submap_data, trajectory_id).rotation();
+    
+  //   auto distance_diff = sqrt(pow(submap_global_pose_translation[0] - optimized_submap_global_pose_translation[0], 2) + pow(submap_global_pose_translation[1] - optimized_submap_global_pose_translation[1], 2));
+  //   auto angle_diff = submap_global_pose_rotation.angularDistance(optimized_submap_global_pose_rotation) * 180.0 / M_PI;
+  //   LOG(INFO) << "//////////////// Real time localization score: " << localization_score_;
+  //   LOG(INFO) << "Distance_diff: " << distance_diff;
+  //   LOG(INFO) << "Angle_diff: " << angle_diff;
+
+  //   if (distance_diff > max_optimization_range_env || std::fabs(angle_diff) > max_optimization_angle_env)
+  //   {
+  //     optimization_problem_->submap_data() = before_optimize_submap_data;
+  //     data_.global_submap_poses_2d = optimization_problem_->submap_data();
+  //     LOG(INFO) << "******** Skip Optimization ! ******** ";
+  //     // return;
+  //   }
+
+  //   // LOG(INFO) << "******** corrected_submap_pose_.size()******** " << corrected_submap_pose_.size();
+  //   if (localization_score_ < min_localization_score_for_optimize_env && corrected_submap_pose_.size() == 10)
+  //   {
+  //     SubmapId corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1]);
+  //     SubmapId latest_corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1] + 1);
+  //     auto translation = Eigen::Matrix<double, 2, 1>(corrected_submap_pose_[3], corrected_submap_pose_[4]);
+  //     double angle = transform::GetYaw<double>(Eigen::Quaternion<double>(corrected_submap_pose_[9], corrected_submap_pose_[6], corrected_submap_pose_[7], corrected_submap_pose_[8]));
+  //     transform::Rigid2<double> transformation(translation, angle);
+  //     transform::Rigid2d corrected_submap_global_pose(transformation);
+  //     if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end() && 
+  //         optimization_problem_->submap_data().find(latest_corrected_submap_id) == optimization_problem_->submap_data().end())
+  //     {
+  //       auto distance_diff = sqrt(pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().x() - corrected_submap_global_pose.translation().x(), 2) + 
+  //                            pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().y() - corrected_submap_global_pose.translation().y(), 2));
+  //       if (localization_score_ < 0.5 || distance_diff < (1 - localization_score_) * 2.5)
+  //       {
+  //         optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
+  //         data_.global_submap_poses_2d = optimization_problem_->submap_data();
+  //         LOG(INFO) << "******** Do Optimization ! ******** ";
+  //       }
+
+  //     }
+  //   }
+
+  // }
 
   for (const int trajectory_id : node_data.trajectory_ids()) {
     for (const auto& node : node_data.trajectory(trajectory_id)) {
