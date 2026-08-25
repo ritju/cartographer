@@ -920,7 +920,11 @@ void PoseGraph2D::RunOptimization() {
   // 是否接受优化结果
   bool accept_optimization = true;
   std::string rejection_reason = "";
-  for (const int trajectory_id : node_data.trajectory_ids()) {
+  for (const int trajectory_id : data_.trajectory_nodes.trajectory_ids()) {
+    if (trajectory_id == 0)
+    {
+      continue;
+    }
     if (node_data.trajectory(trajectory_id).begin() == node_data.trajectory(trajectory_id).end()) {
       continue;
     }
@@ -951,40 +955,23 @@ void PoseGraph2D::RunOptimization() {
       rejection_reason = absl::StrCat("Distance change too large: ", distance_change, "m");
       break;
     }
-    if (std::fabs(angle_change_deg) > max_optimization_angle_env) {
-      accept_optimization = false;
-      rejection_reason = absl::StrCat("Angle change too large: ", angle_change_deg, "deg");
-      break;
-    }
-    // 根据判断结果决定是否接受优化
-    if (!accept_optimization) {
-      // 恢复优化前的子图数据，不接受优化结果
-      optimization_problem_->submap_data() = before_optimize_submap_data;
-      data_.global_submap_poses_2d = optimization_problem_->submap_data();
-      LOG(WARNING) << "Optimization rejected for trajectory. Reason: " << rejection_reason;
-    }
-    // if (localization_score_ < min_localization_score_for_optimize_env && corrected_submap_pose_.size() == 10)
-    // {
-    //   SubmapId corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1]);
-    //   SubmapId latest_corrected_submap_id(corrected_submap_pose_[0], corrected_submap_pose_[1] + 1);
-    //   auto translation = Eigen::Matrix<double, 2, 1>(corrected_submap_pose_[3], corrected_submap_pose_[4]);
-    //   double angle = transform::GetYaw<double>(Eigen::Quaternion<double>(corrected_submap_pose_[9], corrected_submap_pose_[6], corrected_submap_pose_[7], corrected_submap_pose_[8]));
-    //   transform::Rigid2<double> transformation(translation, angle);
-    //   transform::Rigid2d corrected_submap_global_pose(transformation);
-    //   if (optimization_problem_->submap_data().find(corrected_submap_id) != optimization_problem_->submap_data().end() && 
-    //       optimization_problem_->submap_data().find(latest_corrected_submap_id) == optimization_problem_->submap_data().end())
-    //   {
-    //     auto distance_diff = sqrt(pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().x() - corrected_submap_global_pose.translation().x(), 2) + 
-    //                          pow(optimization_problem_->submap_data().at(corrected_submap_id).global_pose.translation().y() - corrected_submap_global_pose.translation().y(), 2));
-    //     if (localization_score_ < 0.5 || distance_diff < (1 - localization_score_) * 2.5)
-    //     {
-    //       optimization_problem_->submap_data().at(corrected_submap_id).global_pose = corrected_submap_global_pose;
-    //       data_.global_submap_poses_2d = optimization_problem_->submap_data();
-    //       LOG(INFO) << "******** Do Optimization ! ******** ";
-    //     }
-
-    //   }
+    // if (std::fabs(angle_change_deg) > max_optimization_angle_env) {
+    //   accept_optimization = false;
+    //   rejection_reason = absl::StrCat("Angle change too large: ", angle_change_deg, "deg");
+    //   break;
     // }
+    // 根据判断结果决定是否接受优化
+  }
+  if (!accept_optimization)
+  {
+    // 恢复优化前的子图数据，不接受优化结果
+    optimization_problem_->submap_data() = before_optimize_submap_data;
+    data_.global_submap_poses_2d = optimization_problem_->submap_data();
+    LOG(WARNING) << "Optimization rejected for trajectory. Reason: " << rejection_reason;
+  }
+  else
+  {
+    LOG(INFO) << "Optimization accepted for all trajectories.";
   }
 
   // for (const int trajectory_id : data_.trajectory_nodes.trajectory_ids())
